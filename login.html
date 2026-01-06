@@ -3,17 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <title>تسجيل الدخول</title>
+
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600&display=swap" rel="stylesheet">
+
   <style>
     * { box-sizing: border-box; font-family: 'Cairo', sans-serif; }
+
     body {
       margin: 0;
-      height: 100vh;
+      min-height: 100vh;
       background: linear-gradient(135deg, #f0f4f8, #d9e2ec);
       display: flex;
       justify-content: center;
       align-items: center;
     }
+
     .card {
       background: #fff;
       width: 380px;
@@ -21,37 +25,55 @@
       border-radius: 16px;
       box-shadow: 0 20px 40px rgba(0,0,0,.08);
     }
-    h2 { text-align: center; margin-bottom: 25px; color: #334e68; }
-    .group { margin-bottom: 15px; }
-    label { display: block; margin-bottom: 6px; color: #627d98; font-size: 14px; }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #334e68;
+    }
+
+    .group { margin-bottom: 14px; }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      color: #627d98;
+      font-size: 14px;
+    }
+
     input {
       width: 100%;
-      padding: 12px;
+      padding: 11px;
       border-radius: 10px;
       border: 1px solid #cbd2d9;
       outline: none;
+      font-size: 14px;
     }
+
     button {
       width: 100%;
       padding: 12px;
       border: none;
       border-radius: 12px;
       background: #3f8efc;
-      color: #fff;
+      color: white;
       font-size: 16px;
       cursor: pointer;
       margin-top: 10px;
     }
+
     .link {
+      margin-top: 12px;
       text-align: center;
-      margin-top: 15px;
       font-size: 14px;
     }
+
     .link a {
       color: #3f8efc;
       text-decoration: none;
       font-weight: 600;
     }
+
     .error {
       color: red;
       text-align: center;
@@ -60,6 +82,7 @@
     }
   </style>
 </head>
+
 <body>
 
 <div class="card">
@@ -67,21 +90,22 @@
 
   <div class="group">
     <label>البريد الإلكتروني</label>
-    <input type="email" id="email" required>
+    <input id="email" type="email">
   </div>
 
   <div class="group">
     <label>كلمة المرور</label>
-    <input type="password" id="password" required>
+    <input id="password" type="password">
   </div>
 
   <button id="loginBtn">تسجيل الدخول</button>
-  <div class="error" id="errorMsg"></div>
 
   <div class="link">
     ليس لديك حساب؟
     <a href="register.html">إنشاء حساب</a>
   </div>
+
+  <div class="error" id="errorMsg"></div>
 </div>
 
 <script type="module">
@@ -100,14 +124,24 @@
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
 
-  document.getElementById("loginBtn").addEventListener("click", () => {
-    const email = email.value.trim();
-    const password = password.value;
+  document.getElementById("loginBtn").addEventListener("click", async () => {
+    const errorMsg = document.getElementById("errorMsg");
     errorMsg.textContent = "";
 
-    signInWithEmailAndPassword(auth, email, password)
-      .then(() => window.location.href = "index.html")
-      .catch(() => errorMsg.textContent = "بيانات الدخول غير صحيحة");
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+
+    if (!email || !password) {
+      errorMsg.textContent = "أدخل البريد الإلكتروني وكلمة المرور";
+      return;
+    }
+
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      window.location.href = "index.html";
+    } catch (error) {
+      errorMsg.textContent = "بيانات الدخول غير صحيحة";
+    }
   });
 </script>
 
