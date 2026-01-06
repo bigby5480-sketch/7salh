@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <title>الرئيسية</title>
 
+<script src="https://www.youtube.com/iframe_api"></script>
+
 <style>
 body {
   margin: 0;
@@ -12,6 +14,7 @@ body {
   font-family: Arial;
   height: 100vh;
   overflow-y: scroll;
+  scroll-snap-type: y mandatory;
 }
 
 /* TOP BAR */
@@ -28,145 +31,106 @@ body {
   z-index: 1000;
 }
 
-.balance {
-  font-size: 16px;
-}
+.balance { font-size: 16px; }
+.dots { font-size: 28px; cursor: pointer; }
 
-.menu {
-  cursor: pointer;
-  font-size: 22px;
-}
-
-/* DROPDOWN */
 .dropdown {
   position: absolute;
   top: 55px;
   right: 10px;
-  background: #222;
-  border-radius: 8px;
+  background: #1e1e1e;
+  border-radius: 10px;
   display: none;
   flex-direction: column;
-  min-width: 160px;
+  min-width: 180px;
 }
 
-.dropdown button {
+.dropdown div, .dropdown button {
+  padding: 12px;
+  color: white;
   background: none;
   border: none;
-  color: white;
-  padding: 12px;
   text-align: right;
-  cursor: pointer;
 }
 
-.dropdown button:hover {
-  background: #333;
-}
-
-/* VIDEOS */
+/* VIDEO */
 .video {
   height: 100vh;
-  margin-top: 55px;
+  scroll-snap-align: start;
+  position: relative;
 }
 
-/* ADD BUTTON */
-.add-btn {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  font-size: 30px;
-  background: #3f8efc;
+iframe {
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* CONTROLS */
+.controls {
+  position: absolute;
+  right: 15px;
+  bottom: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.controls button {
+  background: rgba(0,0,0,.6);
+  color: white;
   border: none;
   border-radius: 50%;
-  width: 55px;
-  height: 55px;
-  cursor: pointer;
-  z-index: 1000;
+  width: 48px;
+  height: 48px;
+  font-size: 18px;
 }
 
-/* MODAL */
-.modal {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,.7);
-  justify-content: center;
-  align-items: center;
-  z-index: 2000;
-}
-
-.modal-content {
-  background: #111;
-  padding: 20px;
-  border-radius: 10px;
-  width: 90%;
-  max-width: 350px;
-}
-.modal-content input {
-  width: 100%;
-  padding: 8px;
+.controls button.active {
+  background: #3f8efc;
 }
 </style>
 </head>
 
 <body>
 
-<!-- TOP BAR -->
 <div class="topbar">
   <div class="balance" id="balance">0 ﷼</div>
-  <div class="menu" onclick="toggleMenu()">⋮</div>
+  <div class="dots" onclick="toggleMenu()">⋯</div>
 
   <div class="dropdown" id="dropdown">
-    <button id="username">اسم المستخدم</button>
-    <button>معلومات المستخدم</button>
+    <div id="username"></div>
+    <button onclick="alert('قريبًا')">معلومات المستخدم</button>
     <button onclick="logout()">تسجيل الخروج</button>
   </div>
 </div>
 
-<!-- ADD VIDEO BUTTON (للجميع) -->
-<button class="add-btn" onclick="openAdd()">＋</button>
-
-<!-- ADD VIDEO MODAL -->
-<div class="modal" id="addModal">
-  <div class="modal-content">
-    <h3>إضافة فيديو</h3><br>
-
-    <input id="yt" placeholder="رابط YouTube"><br><br>
-
-    <strong>المناطق:</strong><br>
-    <label><input type="checkbox" value="الشرقية"> الشرقية</label><br>
-    <label><input type="checkbox" value="الوسطى"> الوسطى</label><br>
-    <label><input type="checkbox" value="الغربية"> الغربية</label><br><br>
-
-    <button onclick="saveVideo()">حفظ الفيديو</button>
-  </div>
-</div>
+<div id="videos"></div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import {
-  getFirestore, doc, getDoc, collection, addDoc, getDocs
+  getFirestore, doc, getDoc, collection, getDocs,
+  setDoc, updateDoc, increment
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-/* FIREBASE CONFIG */
-const firebaseConfig = {
+const app = initializeApp({
   apiKey: "AIzaSyB4tTVOD8P95EUzmOFNkco9AKI0wP1dLW0",
   authDomain: "salh01.firebaseapp.com",
   projectId: "salh01"
-};
+});
 
-const app = initializeApp(firebaseConfig);
 const auth = getAuth();
 const db = getFirestore();
 
-let userData;
+let currentUser, userData;
+let players = {};
+let currentPlaying = null;
 
-/* AUTH CHECK */
 onAuthStateChanged(auth, async user => {
-  if (!user) {
-    location.href = "login.html";
-    return;
-  }
+  if (!user) return location.href = "login.html";
+  currentUser = user;
 
   const snap = await getDoc(doc(db, "users", user.uid));
   userData = snap.data();
@@ -177,71 +141,93 @@ onAuthStateChanged(auth, async user => {
   loadVideos();
 });
 
-/* LOAD VIDEOS */
 async function loadVideos() {
   const snap = await getDocs(collection(db, "videos"));
+  const container = document.getElementById("videos");
 
   snap.forEach(d => {
     const v = d.data();
-
-    // فلترة حسب المنطقة
     if (!v.regions.includes(userData.region)) return;
 
     const div = document.createElement("div");
     div.className = "video";
     div.innerHTML = `
-      <iframe
-        width="100%"
-        height="100%"
-        src="https://www.youtube.com/embed/${v.youtubeId}?controls=0"
-        frameborder="0"
-        allowfullscreen>
-      </iframe>
+      <div id="player-${d.id}"></div>
+      <div class="controls">
+        <button id="like-${d.id}">★</button>
+        <button id="watch-${d.id}">✔</button>
+      </div>
     `;
-    document.body.appendChild(div);
+    container.appendChild(div);
+
+    players[d.id] = { youtubeId: v.youtubeId };
+    setupLike(d.id);
   });
 }
 
-/* UI FUNCTIONS */
+window.onYouTubeIframeAPIReady = () => {
+  Object.keys(players).forEach(id => {
+    players[id].player = new YT.Player(`player-${id}`, {
+      videoId: players[id].youtubeId,
+      playerVars: { controls: 0 },
+      events: {
+        onStateChange: e => handleState(e, id)
+      }
+    });
+  });
+};
+
+async function handleState(e, videoId) {
+  if (e.data === YT.PlayerState.PLAYING) {
+    if (currentPlaying && currentPlaying !== videoId) {
+      players[currentPlaying].player.pauseVideo();
+    }
+    currentPlaying = videoId;
+  }
+
+  if (e.data === YT.PlayerState.ENDED) {
+    const ref = doc(db, "interactions", `${currentUser.uid}_${videoId}`);
+    const snap = await getDoc(ref);
+
+    if (!snap.exists()) {
+      await setDoc(ref, { watched: true });
+      await updateDoc(doc(db, "users", currentUser.uid), {
+        balance: increment(0.5)
+      });
+      document.getElementById("balance").innerText =
+        (userData.balance += 0.5) + " ﷼";
+    }
+
+    document.getElementById(`watch-${videoId}`).classList.add("active");
+  }
+}
+
+async function setupLike(videoId) {
+  const btn = document.getElementById(`like-${videoId}`);
+  const ref = doc(db, "interactions", `${currentUser.uid}_${videoId}`);
+  const snap = await getDoc(ref);
+
+  if (snap.exists() && snap.data().liked) btn.classList.add("active");
+
+  btn.onclick = async () => {
+    await setDoc(ref, { liked: true }, { merge: true });
+    btn.classList.add("active");
+  };
+}
+
+/* UI */
 window.toggleMenu = () => {
   const d = document.getElementById("dropdown");
   d.style.display = d.style.display === "flex" ? "none" : "flex";
 };
 
-window.logout = () => {
-  signOut(auth).then(() => location.href = "login.html");
-};
+document.addEventListener("click", e => {
+  const m = document.getElementById("dropdown");
+  const d = document.querySelector(".dots");
+  if (!m.contains(e.target) && !d.contains(e.target)) m.style.display = "none";
+});
 
-window.openAdd = () => {
-  document.getElementById("addModal").style.display = "flex";
-};
-
-/* SAVE VIDEO */
-window.saveVideo = async () => {
-  const url = document.getElementById("yt").value.trim();
-  if (!url.includes("v=")) {
-    alert("رابط يوتيوب غير صحيح");
-    return;
-  }
-
-  const youtubeId = url.split("v=")[1].split("&")[0];
-
-  const regions = [...document.querySelectorAll("input[type=checkbox]:checked")]
-    .map(c => c.value);
-
-  if (regions.length === 0) {
-    alert("اختر منطقة واحدة على الأقل");
-    return;
-  }
-
-  await addDoc(collection(db, "videos"), {
-    youtubeId,
-    regions,
-    createdAt: new Date()
-  });
-
-  location.reload();
-};
+window.logout = () => signOut(auth).then(()=>location.href="login.html");
 </script>
 
 </body>
