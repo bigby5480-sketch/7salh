@@ -17,7 +17,6 @@ body {
   scroll-snap-type: y mandatory;
 }
 
-/* TOP BAR */
 .topbar {
   position: fixed;
   top: 0;
@@ -32,9 +31,8 @@ body {
 }
 
 .balance { font-size: 16px; }
-.dots { font-size: 28px; cursor: pointer; user-select: none; }
+.dots { font-size: 28px; cursor: pointer; }
 
-/* DROPDOWN */
 .dropdown {
   position: absolute;
   top: 55px;
@@ -44,11 +42,9 @@ body {
   display: none;
   flex-direction: column;
   min-width: 180px;
-  box-shadow: 0 10px 25px rgba(0,0,0,.5);
 }
 
-.dropdown div,
-.dropdown button {
+.dropdown div, .dropdown button {
   padding: 12px;
   color: white;
   background: none;
@@ -56,11 +52,6 @@ body {
   text-align: right;
 }
 
-.dropdown button:hover {
-  background: #333;
-}
-
-/* VIDEO */
 .video {
   height: 100vh;
   scroll-snap-align: start;
@@ -74,7 +65,6 @@ iframe {
   pointer-events: none;
 }
 
-/* CONTROLS */
 .controls {
   position: absolute;
   right: 15px;
@@ -92,14 +82,12 @@ iframe {
   width: 48px;
   height: 48px;
   font-size: 18px;
-  cursor: pointer;
 }
 
 .controls button.active {
   background: #3f8efc;
 }
 
-/* ADD BUTTON */
 .add-btn {
   position: fixed;
   bottom: 20px;
@@ -115,7 +103,6 @@ iframe {
   z-index: 1500;
 }
 
-/* MODAL */
 .modal {
   display: none;
   position: fixed;
@@ -133,42 +120,30 @@ iframe {
   width: 90%;
   max-width: 350px;
 }
-
-.modal-content input {
-  width: 100%;
-  padding: 8px;
-}
 </style>
 </head>
 
 <body>
 
-<!-- TOP BAR -->
 <div class="topbar">
   <div class="balance" id="balance">0 ﷼</div>
   <div class="dots" onclick="toggleMenu()">⋯</div>
-
   <div class="dropdown" id="dropdown">
-    <div id="username">اسم المستخدم</div>
-    <button onclick="alert('ستضاف لاحقًا')">معلومات المستخدم</button>
+    <div id="username"></div>
+    <button onclick="alert('قريبًا')">معلومات المستخدم</button>
     <button onclick="logout()">تسجيل الخروج</button>
   </div>
 </div>
 
-<!-- VIDEOS -->
 <div id="videos"></div>
 
-<!-- ADD VIDEO BUTTON -->
 <button class="add-btn" onclick="openAdd()">＋</button>
 
-<!-- ADD VIDEO MODAL -->
 <div class="modal" id="addModal">
   <div class="modal-content">
     <h3>إضافة فيديو</h3><br>
-
     <input id="yt" placeholder="رابط YouTube"><br><br>
 
-    <strong>المناطق:</strong><br>
     <label><input type="checkbox" value="الشرقية"> الشرقية</label><br>
     <label><input type="checkbox" value="الوسطى"> الوسطى</label><br>
     <label><input type="checkbox" value="الغربية"> الغربية</label><br><br>
@@ -185,16 +160,15 @@ import {
   addDoc, setDoc, updateDoc, increment
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-/* FIREBASE */
 const app = initializeApp({
   apiKey: "AIzaSyB4tTVOD8P95EUzmOFNkco9AKI0wP1dLW0",
   authDomain: "salh01.firebaseapp.com",
   projectId: "salh01"
 });
+
 const auth = getAuth();
 const db = getFirestore();
 
-/* GLOBALS */
 let currentUser, userData;
 let players = {};
 let currentPlaying = null;
@@ -213,10 +187,22 @@ onAuthStateChanged(auth, async user => {
   loadVideos();
 });
 
+/* CREATE PLAYER */
+function createPlayer(videoId, youtubeId) {
+  players[videoId].player = new YT.Player(`player-${videoId}`, {
+    videoId,
+    playerVars: { controls: 0, disablekb: 1 },
+    events: {
+      onStateChange: e => handleState(e, videoId)
+    }
+  });
+}
+
 /* LOAD VIDEOS */
 async function loadVideos() {
   const snap = await getDocs(collection(db, "videos"));
   const container = document.getElementById("videos");
+  container.innerHTML = "";
 
   snap.forEach(d => {
     const v = d.data();
@@ -235,19 +221,19 @@ async function loadVideos() {
 
     players[d.id] = { youtubeId: v.youtubeId };
     setupLike(d.id);
+
+    if (window.YT && YT.Player) {
+      createPlayer(d.id, v.youtubeId);
+    }
   });
 }
 
-/* YOUTUBE */
+/* YOUTUBE READY */
 window.onYouTubeIframeAPIReady = () => {
   Object.keys(players).forEach(id => {
-    players[id].player = new YT.Player(`player-${id}`, {
-      videoId: players[id].youtubeId,
-      playerVars: { controls: 0 },
-      events: {
-        onStateChange: e => handleState(e, id)
-      }
-    });
+    if (!players[id].player) {
+      createPlayer(id, players[id].youtubeId);
+    }
   });
 };
 
@@ -272,7 +258,6 @@ async function handleState(e, videoId) {
       userData.balance += 0.5;
       document.getElementById("balance").innerText = userData.balance + " ﷼";
     }
-
     document.getElementById(`watch-${videoId}`).classList.add("active");
   }
 }
@@ -292,33 +277,21 @@ async function setupLike(videoId) {
 }
 
 /* ADD VIDEO */
-window.openAdd = () => {
-  document.getElementById("addModal").style.display = "flex";
-};
+window.openAdd = () => document.getElementById("addModal").style.display = "flex";
 
 window.saveVideo = async () => {
   const url = document.getElementById("yt").value.trim();
   let youtubeId = "";
 
-  if (url.includes("watch?v=")) {
-    youtubeId = url.split("watch?v=")[1].split("&")[0];
-  } else if (url.includes("youtu.be/")) {
-    youtubeId = url.split("youtu.be/")[1].split("?")[0];
-  }
+  if (url.includes("watch?v=")) youtubeId = url.split("watch?v=")[1].split("&")[0];
+  else if (url.includes("youtu.be/")) youtubeId = url.split("youtu.be/")[1];
 
   if (!youtubeId) return alert("رابط غير صحيح");
 
-  const regions = [...document.querySelectorAll('#addModal input:checked')]
-    .map(c => c.value);
-
+  const regions = [...document.querySelectorAll('#addModal input:checked')].map(c => c.value);
   if (!regions.length) return alert("اختر منطقة");
 
-  await addDoc(collection(db, "videos"), {
-    youtubeId,
-    regions,
-    order: Date.now()
-  });
-
+  await addDoc(collection(db, "videos"), { youtubeId, regions });
   location.reload();
 };
 
@@ -334,7 +307,6 @@ document.addEventListener("click", e => {
   if (!m.contains(e.target) && !d.contains(e.target)) m.style.display = "none";
 });
 
-/* LOGOUT */
 window.logout = () => signOut(auth).then(() => location.href = "login.html");
 </script>
 
