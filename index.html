@@ -24,7 +24,6 @@ body{
   height:55px;
   background:rgba(0,0,0,.85);
   display:flex;
-  justify-content:space-between;
   align-items:center;
   padding:0 15px;
   z-index:1000;
@@ -37,16 +36,12 @@ body{
   margin-top:55px;
 }
 
-iframe{
-  width:100%;
-  height:100%;
-}
+iframe{width:100%;height:100%}
 
 .tap-layer{
   position:absolute;
   inset:0;
-  z-index:15;
-  cursor:pointer;
+  z-index:10;
 }
 
 .yt-title-cover{
@@ -54,8 +49,8 @@ iframe{
   top:0;
   width:100%;
   height:65px;
-  background:rgba(0,0,0,.85);
-  z-index:10;
+  background:black;
+  z-index:11;
   pointer-events:none;
 }
 
@@ -63,35 +58,27 @@ iframe{
   position:absolute;
   bottom:0;
   width:100%;
-  height:140px;
+  height:160px;
   background:black;
-  z-index:10;
+  z-index:11;
   pointer-events:none;
 }
 
-.controls{
+.reward-overlay{
   position:absolute;
-  right:15px;
-  bottom:140px;
-  display:flex;
-  flex-direction:column;
-  gap:12px;
+  inset:0;
+  background:rgba(0,0,0,.85);
   z-index:20;
+  display:none;
+  flex-direction:column;
+  justify-content:center;
+  align-items:center;
+  text-align:center;
+  cursor:pointer;
+  font-size:22px;
 }
 
-.controls button{
-  background:rgba(0,0,0,.6);
-  color:white;
-  border:none;
-  border-radius:50%;
-  width:48px;
-  height:48px;
-  font-size:18px;
-}
-
-.controls button.active{
-  background:#3f8efc;
-}
+.reward-overlay span{font-size:40px}
 
 .add-btn{
   position:fixed;
@@ -151,22 +138,20 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import {
   getFirestore, doc, getDoc, collection, getDocs,
-  addDoc, setDoc, deleteDoc, updateDoc, increment
+  addDoc, setDoc, updateDoc, increment
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const app = initializeApp({
-  apiKey: "AIzaSyB4tTVOD8P95EUzmOFNkco9AKI0wP1dLW0",
-  authDomain: "salh01.firebaseapp.com",
-  projectId: "salh01"
+  apiKey:"AIzaSyB4tTVOD8P95EUzmOFNkco9AKI0wP1dLW0",
+  authDomain:"salh01.firebaseapp.com",
+  projectId:"salh01"
 });
 
-const auth = getAuth();
-const db = getFirestore();
+const auth=getAuth();
+const db=getFirestore();
 
-let players = {};
-let currentPlaying = null;
-let currentUser, userData;
-let observer;
+let players={}, currentUser, userData, observer, currentPlaying=null;
+let userInteracted=false;
 
 onAuthStateChanged(auth, async user=>{
   if(!user) location.href="login.html";
@@ -182,38 +167,35 @@ function waitYT(cb){
   else setTimeout(()=>waitYT(cb),100);
 }
 
-function createPlayer(id, yt){
-  players[id].player = new YT.Player(`player-${id}`,{
-    videoId: yt,
+function createPlayer(id,yt){
+  players[id].player=new YT.Player(`player-${id}`,{
+    videoId:yt,
     playerVars:{
       controls:0,
       rel:0,
       modestbranding:1,
       playsinline:1,
-      iv_load_policy:3,
-      autoplay:0
+      iv_load_policy:3
     },
     events:{
-      onReady:e=>{
-        e.target.mute();
-      },
+      onReady:e=>e.target.mute(),
       onStateChange:e=>handleState(e,id)
     }
   });
 }
 
-observer = new IntersectionObserver(entries=>{
+observer=new IntersectionObserver(entries=>{
   entries.forEach(entry=>{
-    const id = entry.target.dataset.id;
-    const p = players[id]?.player;
+    const id=entry.target.dataset.id;
+    const p=players[id]?.player;
     if(!p) return;
 
     if(entry.isIntersecting){
-      if(currentPlaying && currentPlaying !== id){
+      if(currentPlaying && currentPlaying!==id)
         players[currentPlaying].player.pauseVideo();
-      }
+
       p.playVideo();
-      currentPlaying = id;
+      currentPlaying=id;
     }else{
       p.pauseVideo();
     }
@@ -221,76 +203,84 @@ observer = new IntersectionObserver(entries=>{
 },{threshold:0.7});
 
 async function loadVideos(){
-  const snap = await getDocs(collection(db,"videos"));
+  const snap=await getDocs(collection(db,"videos"));
   videos.innerHTML="";
 
   snap.forEach(d=>{
-    const v = d.data();
-    const div = document.createElement("div");
+    const div=document.createElement("div");
     div.className="video";
-    div.dataset.id = d.id;
+    div.dataset.id=d.id;
 
     div.innerHTML=`
       <div class="yt-title-cover"></div>
       <div id="player-${d.id}"></div>
       <div class="yt-end-cover"></div>
-      <div class="tap-layer" onclick="togglePlay('${d.id}')"></div>
-      <div class="controls">
-        <button id="watch-${d.id}">✔</button>
-        <button onclick="deleteVideo('${d.id}')">🗑</button>
+
+      <div class="reward-overlay" id="reward-${d.id}"
+        onclick="replayVideo('${d.id}')">
+        <span>🎉👏</span>
+        <div>تم الحصول على <b>0.5 ريال</b></div>
+        <small>استمر بالمشاهدة لزيادة أرباحك</small>
       </div>
+
+      <div class="tap-layer" onclick="togglePlay('${d.id}')"></div>
     `;
 
     videos.appendChild(div);
     observer.observe(div);
 
-    players[d.id]={youtubeId:v.youtubeId};
-    waitYT(()=>createPlayer(d.id,v.youtubeId));
+    players[d.id]={};
+    waitYT(()=>createPlayer(d.id,d.data().youtubeId));
+
+    checkReward(d.id);
   });
 }
 
-function togglePlay(id){
-  const p = players[id].player;
-  if(!p) return;
-
-  p.unMute();
-
-  if(p.getPlayerState() === YT.PlayerState.PLAYING){
-    p.pauseVideo();
-  }else{
-    p.playVideo();
-  }
+async function checkReward(id){
+  const ref=doc(db,"interactions",`${currentUser.uid}_${id}`);
+  const snap=await getDoc(ref);
+  if(snap.exists())
+    document.getElementById(`reward-${id}`).style.display="flex";
 }
 
+function togglePlay(id){
+  userInteracted=true;
+  const p=players[id].player;
+  p.unMute();
+  p.getPlayerState()===YT.PlayerState.PLAYING ? p.pauseVideo() : p.playVideo();
+}
+
+window.replayVideo=id=>{
+  const p=players[id].player;
+  p.seekTo(0);
+  p.playVideo();
+};
+
 async function handleState(e,id){
-  if(e.data === YT.PlayerState.ENDED){
-    const ref = doc(db,"interactions",`${currentUser.uid}_${id}`);
-    const snap = await getDoc(ref);
+  if(e.data===YT.PlayerState.ENDED){
+    const ref=doc(db,"interactions",`${currentUser.uid}_${id}`);
+    const snap=await getDoc(ref);
+
     if(!snap.exists()){
       await setDoc(ref,{watched:true});
       await updateDoc(doc(db,"users",currentUser.uid),{
-        balance: increment(0.5)
+        balance:increment(0.5)
       });
-      userData.balance += 0.5;
-      balance.innerText = userData.balance + " ﷼";
+      userData.balance+=0.5;
+      balance.innerText=userData.balance+" ﷼";
     }
-    document.getElementById(`watch-${id}`).classList.add("active");
+
+    document.getElementById(`reward-${id}`).style.display="flex";
   }
 }
 
-window.deleteVideo = async(id)=>{
-  if(!confirm("هل تريد حذف الفيديو؟")) return;
-  await deleteDoc(doc(db,"videos",id));
-  location.reload();
-};
+window.openAdd=()=>addModal.style.display="flex";
 
-window.openAdd = ()=> addModal.style.display="flex";
-
-window.saveVideo = async()=>{
-  const url = yt.value.trim();
+window.saveVideo=async()=>{
+  const url=yt.value.trim();
   let id="";
-  if(url.includes("watch?v=")) id = url.split("watch?v=")[1].split("&")[0];
-  else if(url.includes("youtu.be/")) id = url.split("youtu.be/")[1].split("?")[0];
+  if(url.includes("watch?v=")) id=url.split("watch?v=")[1].split("&")[0];
+  else if(url.includes("youtu.be/")) id=url.split("youtu.be/")[1].split("?")[0];
   if(!id) return alert("رابط غير صحيح");
   await addDoc(collection(db,"videos"),{youtubeId:id});
   location.reload();
