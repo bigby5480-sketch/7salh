@@ -7,119 +7,20 @@
 <script src="https://www.youtube.com/iframe_api"></script>
 
 <style>
-body {
-  margin: 0;
-  background: black;
-  color: white;
-  font-family: Arial;
-  height: 100vh;
-  overflow-y: scroll;
-  scroll-snap-type: y mandatory;
-}
-
-.topbar {
-  position: fixed;
-  top: 0;
-  width: 100%;
-  height: 55px;
-  background: rgba(0,0,0,.85);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 15px;
-  z-index: 1000;
-}
-
-.balance { font-size: 16px; }
-.dots { font-size: 28px; cursor: pointer; }
-
-.dropdown {
-  position: absolute;
-  top: 55px;
-  right: 10px;
-  background: #1e1e1e;
-  border-radius: 10px;
-  display: none;
-  flex-direction: column;
-  min-width: 180px;
-}
-
-.dropdown div, .dropdown button {
-  padding: 12px;
-  color: white;
-  background: none;
-  border: none;
-  text-align: right;
-}
-
-.video {
-  height: 100vh;
-  scroll-snap-align: start;
-  position: relative;
-  margin-top: 55px;
-}
-
-iframe {
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-}
-
-.controls {
-  position: absolute;
-  right: 15px;
-  bottom: 120px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.controls button {
-  background: rgba(0,0,0,.6);
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 48px;
-  height: 48px;
-  font-size: 18px;
-}
-
-.controls button.active {
-  background: #3f8efc;
-}
-
-.add-btn {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  width: 55px;
-  height: 55px;
-  border-radius: 50%;
-  background: #3f8efc;
-  color: white;
-  font-size: 32px;
-  border: none;
-  cursor: pointer;
-  z-index: 1500;
-}
-
-.modal {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,.7);
-  justify-content: center;
-  align-items: center;
-  z-index: 2000;
-}
-
-.modal-content {
-  background: #111;
-  padding: 20px;
-  border-radius: 10px;
-  width: 90%;
-  max-width: 350px;
-}
+body{margin:0;background:black;color:white;font-family:Arial;height:100vh;overflow-y:scroll;scroll-snap-type:y mandatory}
+.topbar{position:fixed;top:0;width:100%;height:55px;background:rgba(0,0,0,.85);display:flex;justify-content:space-between;align-items:center;padding:0 15px;z-index:1000}
+.balance{font-size:16px}
+.dots{font-size:28px;cursor:pointer}
+.dropdown{position:absolute;top:55px;right:10px;background:#1e1e1e;border-radius:10px;display:none;flex-direction:column;min-width:180px}
+.dropdown div,.dropdown button{padding:12px;color:white;background:none;border:none;text-align:right}
+.video{height:100vh;scroll-snap-align:start;position:relative;margin-top:55px}
+iframe{width:100%;height:100%;pointer-events:none}
+.controls{position:absolute;right:15px;bottom:120px;display:flex;flex-direction:column;gap:12px}
+.controls button{background:rgba(0,0,0,.6);color:white;border:none;border-radius:50%;width:48px;height:48px;font-size:18px}
+.controls button.active{background:#3f8efc}
+.add-btn{position:fixed;bottom:20px;right:20px;width:55px;height:55px;border-radius:50%;background:#3f8efc;color:white;font-size:32px;border:none;cursor:pointer;z-index:1500}
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);justify-content:center;align-items:center;z-index:2000}
+.modal-content{background:#111;padding:20px;border-radius:10px;width:90%;max-width:350px}
 </style>
 </head>
 
@@ -168,9 +69,8 @@ let currentUser, userData;
 let players = {};
 let currentPlaying = null;
 
-/* AUTH */
 onAuthStateChanged(auth, async user => {
-  if (!user) return location.href = "login.html";
+  if (!user) location.href = "login.html";
   currentUser = user;
 
   const snap = await getDoc(doc(db, "users", user.uid));
@@ -182,129 +82,99 @@ onAuthStateChanged(auth, async user => {
   loadVideos();
 });
 
-/* CREATE PLAYER */
-function createPlayer(videoId, youtubeId) {
-  players[videoId].player = new YT.Player(`player-${videoId}`, {
-    videoId: youtubeId,
-    playerVars: { controls: 0, disablekb: 1 },
-    events: {
-      onStateChange: e => handleState(e, videoId)
-    }
+function waitForYT(cb){
+  if(window.YT && YT.Player) cb();
+  else setTimeout(()=>waitForYT(cb),100);
+}
+
+function createPlayer(id, ytId){
+  players[id].player = new YT.Player(`player-${id}`,{
+    videoId: ytId,
+    playerVars:{controls:0,disablekb:1},
+    events:{onStateChange:e=>handleState(e,id)}
   });
 }
 
-/* LOAD VIDEOS */
-async function loadVideos() {
-  const snap = await getDocs(collection(db, "videos"));
+async function loadVideos(){
+  const snap = await getDocs(collection(db,"videos"));
   const container = document.getElementById("videos");
   container.innerHTML = "";
 
-  snap.forEach(d => {
+  snap.forEach(d=>{
     const v = d.data();
-
     const div = document.createElement("div");
-    div.className = "video";
-    div.innerHTML = `
+    div.className="video";
+    div.innerHTML=`
       <div id="player-${d.id}"></div>
       <div class="controls">
         <button id="like-${d.id}">★</button>
         <button id="watch-${d.id}">✔</button>
-      </div>
-    `;
+      </div>`;
     container.appendChild(div);
 
-    players[d.id] = { youtubeId: v.youtubeId };
+    players[d.id]={youtubeId:v.youtubeId};
+    waitForYT(()=>createPlayer(d.id,v.youtubeId));
     setupLike(d.id);
-
-    if (window.YT && YT.Player) {
-      createPlayer(d.id, v.youtubeId);
-    }
   });
 }
 
-window.onYouTubeIframeAPIReady = () => {
-  Object.keys(players).forEach(id => {
-    if (!players[id].player) {
-      createPlayer(id, players[id].youtubeId);
-    }
-  });
-};
-
-/* VIDEO STATE */
-async function handleState(e, videoId) {
-  if (e.data === YT.PlayerState.PLAYING) {
-    if (currentPlaying && currentPlaying !== videoId) {
+async function handleState(e,id){
+  if(e.data===YT.PlayerState.PLAYING){
+    if(currentPlaying && currentPlaying!==id){
       players[currentPlaying].player.pauseVideo();
     }
-    currentPlaying = videoId;
+    currentPlaying=id;
   }
 
-  if (e.data === YT.PlayerState.ENDED) {
-    const ref = doc(db, "interactions", `${currentUser.uid}_${videoId}`);
-    const snap = await getDoc(ref);
-
-    if (!snap.exists()) {
-      await setDoc(ref, { watched: true });
-      await updateDoc(doc(db, "users", currentUser.uid), {
-        balance: increment(0.5)
-      });
-      userData.balance += 0.5;
-      document.getElementById("balance").innerText = userData.balance + " ﷼";
+  if(e.data===YT.PlayerState.ENDED){
+    const ref=doc(db,"interactions",`${currentUser.uid}_${id}`);
+    const snap=await getDoc(ref);
+    if(!snap.exists()){
+      await setDoc(ref,{watched:true});
+      await updateDoc(doc(db,"users",currentUser.uid),{balance:increment(0.5)});
+      userData.balance+=0.5;
+      document.getElementById("balance").innerText=userData.balance+" ﷼";
     }
-    document.getElementById(`watch-${videoId}`).classList.add("active");
+    document.getElementById(`watch-${id}`).classList.add("active");
   }
 }
 
-/* LIKE */
-async function setupLike(videoId) {
-  const btn = document.getElementById(`like-${videoId}`);
-  const ref = doc(db, "interactions", `${currentUser.uid}_${videoId}`);
-  const snap = await getDoc(ref);
-
-  if (snap.exists() && snap.data().liked) btn.classList.add("active");
-
-  btn.onclick = async () => {
-    await setDoc(ref, { liked: true }, { merge: true });
+async function setupLike(id){
+  const btn=document.getElementById(`like-${id}`);
+  const ref=doc(db,"interactions",`${currentUser.uid}_${id}`);
+  const snap=await getDoc(ref);
+  if(snap.exists() && snap.data().liked) btn.classList.add("active");
+  btn.onclick=async()=>{
+    await setDoc(ref,{liked:true},{merge:true});
     btn.classList.add("active");
   };
 }
 
-/* ADD VIDEO */
-window.openAdd = () => document.getElementById("addModal").style.display = "flex";
+window.openAdd=()=>document.getElementById("addModal").style.display="flex";
 
-window.saveVideo = async () => {
-  const url = document.getElementById("yt").value.trim();
-  let youtubeId = "";
+window.saveVideo=async()=>{
+  const url=document.getElementById("yt").value.trim();
+  let id="";
+  if(url.includes("watch?v=")) id=url.split("watch?v=")[1].split("&")[0];
+  else if(url.includes("youtu.be/")) id=url.split("youtu.be/")[1].split("?")[0];
+  if(!id) return alert("رابط غير صحيح");
 
-  if (url.includes("watch?v=")) {
-    youtubeId = url.split("watch?v=")[1].split("&")[0];
-  } else if (url.includes("youtu.be/")) {
-    youtubeId = url.split("youtu.be/")[1].split("?")[0];
-  }
-
-  if (!youtubeId) return alert("رابط يوتيوب غير صحيح");
-
-  await addDoc(collection(db, "videos"), {
-    youtubeId,
-    createdAt: Date.now()
-  });
-
+  await addDoc(collection(db,"videos"),{youtubeId:id,createdAt:Date.now()});
   location.reload();
 };
 
-/* MENU */
-window.toggleMenu = () => {
-  const d = document.getElementById("dropdown");
-  d.style.display = d.style.display === "flex" ? "none" : "flex";
+window.toggleMenu=()=>{
+  const d=document.getElementById("dropdown");
+  d.style.display=d.style.display==="flex"?"none":"flex";
 };
 
-document.addEventListener("click", e => {
-  const m = document.getElementById("dropdown");
-  const d = document.querySelector(".dots");
-  if (!m.contains(e.target) && !d.contains(e.target)) m.style.display = "none";
+document.addEventListener("click",e=>{
+  const m=document.getElementById("dropdown");
+  const d=document.querySelector(".dots");
+  if(!m.contains(e.target)&&!d.contains(e.target)) m.style.display="none";
 });
 
-window.logout = () => signOut(auth).then(() => location.href = "login.html");
+window.logout=()=>signOut(auth).then(()=>location.href="login.html");
 </script>
 
 </body>
