@@ -6,7 +6,6 @@
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; font-family: 'Cairo', sans-serif; }
-
     body {
       margin: 0;
       min-height: 100vh;
@@ -15,7 +14,6 @@
       justify-content: center;
       align-items: center;
     }
-
     .card {
       background: #fff;
       width: 420px;
@@ -23,35 +21,16 @@
       border-radius: 16px;
       box-shadow: 0 20px 40px rgba(0,0,0,.08);
     }
-
-    h2 {
-      text-align: center;
-      margin-bottom: 20px;
-      color: #334e68;
-    }
-
-    .form-group { margin-bottom: 12px; }
-
-    label {
-      display: block;
-      margin-bottom: 5px;
-      color: #627d98;
-      font-size: 14px;
-    }
-
+    h2 { text-align: center; margin-bottom: 20px; color: #334e68; }
+    .group { margin-bottom: 12px; }
+    label { display: block; margin-bottom: 5px; color: #627d98; font-size: 14px; }
     input, select {
       width: 100%;
       padding: 11px;
       border-radius: 10px;
       border: 1px solid #cbd2d9;
-      font-size: 14px;
       outline: none;
     }
-
-    input:focus, select:focus {
-      border-color: #3f8efc;
-    }
-
     button {
       width: 100%;
       padding: 12px;
@@ -63,7 +42,6 @@
       cursor: pointer;
       margin-top: 10px;
     }
-
     .error {
       color: red;
       text-align: center;
@@ -77,29 +55,14 @@
 <div class="card">
   <h2>إنشاء حساب</h2>
 
-  <div class="form-group">
-    <label>الاسم</label>
-    <input type="text" id="name" required>
-  </div>
+  <div class="group"><label>الاسم</label><input id="name"></div>
+  <div class="group"><label>البريد الإلكتروني</label><input id="email" type="email"></div>
+  <div class="group"><label>كلمة المرور</label><input id="password" type="password"></div>
+  <div class="group"><label>إعادة كلمة المرور</label><input id="confirm" type="password"></div>
 
-  <div class="form-group">
-    <label>البريد الإلكتروني</label>
-    <input type="email" id="email" required>
-  </div>
-
-  <div class="form-group">
-    <label>كلمة المرور</label>
-    <input type="password" id="password" required>
-  </div>
-
-  <div class="form-group">
-    <label>إعادة كلمة المرور</label>
-    <input type="password" id="confirmPassword" required>
-  </div>
-
-  <div class="form-group">
+  <div class="group">
     <label>الفئة العمرية</label>
-    <select id="age" required>
+    <select id="age">
       <option value="">اختر</option>
       <option>15 - 21</option>
       <option>22 - 28</option>
@@ -109,9 +72,9 @@
     </select>
   </div>
 
-  <div class="form-group">
+  <div class="group">
     <label>المنطقة</label>
-    <select id="region" required>
+    <select id="region">
       <option value="">اختر</option>
       <option>المنطقة الشرقية</option>
       <option>المنطقة الوسطى</option>
@@ -119,13 +82,12 @@
     </select>
   </div>
 
-  <div class="form-group">
-    <label>رقم الآيبان</label>
-    <input type="text" id="iban" placeholder="SAxxxxxxxxxxxxxxx" required>
+  <div class="group">
+    <label>الآيبان</label>
+    <input id="iban" placeholder="SAxxxxxxxxxxxxxxx">
   </div>
 
   <button id="registerBtn">إنشاء الحساب</button>
-
   <div class="error" id="errorMsg"></div>
 </div>
 
@@ -147,56 +109,31 @@
   const auth = getAuth(app);
   const db = getFirestore(app);
 
-  document.getElementById("registerBtn").addEventListener("click", async () => {
-    const name = nameInput.value = document.getElementById("name").value.trim();
-    const email = document.getElementById("email").value.trim();
-    const password = document.getElementById("password").value;
-    const confirmPassword = document.getElementById("confirmPassword").value;
-    const age = document.getElementById("age").value;
-    const region = document.getElementById("region").value;
-    const iban = document.getElementById("iban").value.trim();
-    const errorMsg = document.getElementById("errorMsg");
-
+  registerBtn.onclick = async () => {
     errorMsg.textContent = "";
 
-    if (!name || !email || !password || !confirmPassword || !age || !region || !iban) {
-      errorMsg.textContent = "جميع الحقول مطلوبة";
-      return;
-    }
+    if (password.value !== confirm.value)
+      return errorMsg.textContent = "كلمتا المرور غير متطابقتين";
 
-    if (password !== confirmPassword) {
-      errorMsg.textContent = "كلمتا المرور غير متطابقتين";
-      return;
-    }
-
-    if (!/^SA\d{15}$/.test(iban)) {
-      errorMsg.textContent = "الآيبان يجب أن يبدأ بـ SA ويتبعه 15 رقمًا";
-      return;
-    }
+    if (!/^SA\d{15}$/.test(iban.value))
+      return errorMsg.textContent = "آيبان غير صحيح";
 
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const uid = userCredential.user.uid;
-
-      await setDoc(doc(db, "users", uid), {
-        name,
-        email,
-        age,
-        region,
-        iban,
+      const user = await createUserWithEmailAndPassword(auth, email.value, password.value);
+      await setDoc(doc(db, "users", user.user.uid), {
+        name: name.value,
+        email: email.value,
+        age: age.value,
+        region: region.value,
+        iban: iban.value,
         createdAt: new Date()
       });
 
-      window.location.href = "home.html";
-
-    } catch (error) {
-      if (error.code === "auth/email-already-in-use") {
-        errorMsg.textContent = "البريد الإلكتروني مسجل مسبقًا";
-      } else {
-        errorMsg.textContent = "حدث خطأ، حاول مرة أخرى";
-      }
+      window.location.href = "index.html";
+    } catch {
+      errorMsg.textContent = "البريد مستخدم مسبقًا";
     }
-  });
+  };
 </script>
 
 </body>
