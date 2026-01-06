@@ -130,7 +130,7 @@ iframe {
   <div class="dots" onclick="toggleMenu()">⋯</div>
   <div class="dropdown" id="dropdown">
     <div id="username"></div>
-    <button onclick="alert('قريبًا')">معلومات المستخدم</button>
+    <button onclick="alert('لاحقًا')">معلومات المستخدم</button>
     <button onclick="logout()">تسجيل الخروج</button>
   </div>
 </div>
@@ -143,11 +143,6 @@ iframe {
   <div class="modal-content">
     <h3>إضافة فيديو</h3><br>
     <input id="yt" placeholder="رابط YouTube"><br><br>
-
-    <label><input type="checkbox" value="الشرقية"> الشرقية</label><br>
-    <label><input type="checkbox" value="الوسطى"> الوسطى</label><br>
-    <label><input type="checkbox" value="الغربية"> الغربية</label><br><br>
-
     <button onclick="saveVideo()">حفظ الفيديو</button>
   </div>
 </div>
@@ -190,7 +185,7 @@ onAuthStateChanged(auth, async user => {
 /* CREATE PLAYER */
 function createPlayer(videoId, youtubeId) {
   players[videoId].player = new YT.Player(`player-${videoId}`, {
-    videoId,
+    videoId: youtubeId,
     playerVars: { controls: 0, disablekb: 1 },
     events: {
       onStateChange: e => handleState(e, videoId)
@@ -206,7 +201,6 @@ async function loadVideos() {
 
   snap.forEach(d => {
     const v = d.data();
-    if (!v.regions.includes(userData.region)) return;
 
     const div = document.createElement("div");
     div.className = "video";
@@ -228,7 +222,6 @@ async function loadVideos() {
   });
 }
 
-/* YOUTUBE READY */
 window.onYouTubeIframeAPIReady = () => {
   Object.keys(players).forEach(id => {
     if (!players[id].player) {
@@ -283,15 +276,19 @@ window.saveVideo = async () => {
   const url = document.getElementById("yt").value.trim();
   let youtubeId = "";
 
-  if (url.includes("watch?v=")) youtubeId = url.split("watch?v=")[1].split("&")[0];
-  else if (url.includes("youtu.be/")) youtubeId = url.split("youtu.be/")[1];
+  if (url.includes("watch?v=")) {
+    youtubeId = url.split("watch?v=")[1].split("&")[0];
+  } else if (url.includes("youtu.be/")) {
+    youtubeId = url.split("youtu.be/")[1].split("?")[0];
+  }
 
-  if (!youtubeId) return alert("رابط غير صحيح");
+  if (!youtubeId) return alert("رابط يوتيوب غير صحيح");
 
-  const regions = [...document.querySelectorAll('#addModal input:checked')].map(c => c.value);
-  if (!regions.length) return alert("اختر منطقة");
+  await addDoc(collection(db, "videos"), {
+    youtubeId,
+    createdAt: Date.now()
+  });
 
-  await addDoc(collection(db, "videos"), { youtubeId, regions });
   location.reload();
 };
 
