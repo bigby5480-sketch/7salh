@@ -20,7 +20,7 @@ body {
   top: 0;
   width: 100%;
   height: 55px;
-  background: rgba(0,0,0,.8);
+  background: rgba(0,0,0,.85);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -37,6 +37,7 @@ body {
   font-size: 22px;
 }
 
+/* DROPDOWN */
 .dropdown {
   position: absolute;
   top: 55px;
@@ -45,15 +46,20 @@ body {
   border-radius: 8px;
   display: none;
   flex-direction: column;
+  min-width: 160px;
 }
 
 .dropdown button {
   background: none;
   border: none;
   color: white;
-  padding: 10px;
+  padding: 12px;
   text-align: right;
   cursor: pointer;
+}
+
+.dropdown button:hover {
+  background: #333;
 }
 
 /* VIDEOS */
@@ -73,8 +79,8 @@ body {
   border-radius: 50%;
   width: 55px;
   height: 55px;
-  display: none;
   cursor: pointer;
+  z-index: 1000;
 }
 
 /* MODAL */
@@ -85,6 +91,7 @@ body {
   background: rgba(0,0,0,.7);
   justify-content: center;
   align-items: center;
+  z-index: 2000;
 }
 
 .modal-content {
@@ -94,28 +101,38 @@ body {
   width: 90%;
   max-width: 350px;
 }
+.modal-content input {
+  width: 100%;
+  padding: 8px;
+}
 </style>
 </head>
 
 <body>
 
+<!-- TOP BAR -->
 <div class="topbar">
   <div class="balance" id="balance">0 ﷼</div>
   <div class="menu" onclick="toggleMenu()">⋮</div>
 
   <div class="dropdown" id="dropdown">
-    <button id="username"></button>
+    <button id="username">اسم المستخدم</button>
     <button>معلومات المستخدم</button>
     <button onclick="logout()">تسجيل الخروج</button>
   </div>
 </div>
 
-<button class="add-btn" id="addBtn" onclick="openAdd()">＋</button>
+<!-- ADD VIDEO BUTTON (للجميع) -->
+<button class="add-btn" onclick="openAdd()">＋</button>
 
+<!-- ADD VIDEO MODAL -->
 <div class="modal" id="addModal">
   <div class="modal-content">
+    <h3>إضافة فيديو</h3><br>
+
     <input id="yt" placeholder="رابط YouTube"><br><br>
 
+    <strong>المناطق:</strong><br>
     <label><input type="checkbox" value="الشرقية"> الشرقية</label><br>
     <label><input type="checkbox" value="الوسطى"> الوسطى</label><br>
     <label><input type="checkbox" value="الغربية"> الغربية</label><br><br>
@@ -131,20 +148,25 @@ import {
   getFirestore, doc, getDoc, collection, addDoc, getDocs
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-const app = initializeApp({
+/* FIREBASE CONFIG */
+const firebaseConfig = {
   apiKey: "AIzaSyB4tTVOD8P95EUzmOFNkco9AKI0wP1dLW0",
   authDomain: "salh01.firebaseapp.com",
   projectId: "salh01"
-});
+};
 
+const app = initializeApp(firebaseConfig);
 const auth = getAuth();
 const db = getFirestore();
 
-let currentUser, userData;
+let userData;
 
+/* AUTH CHECK */
 onAuthStateChanged(auth, async user => {
-  if (!user) location.href = "login.html";
-  currentUser = user;
+  if (!user) {
+    location.href = "login.html";
+    return;
+  }
 
   const snap = await getDoc(doc(db, "users", user.uid));
   userData = snap.data();
@@ -152,46 +174,68 @@ onAuthStateChanged(auth, async user => {
   document.getElementById("username").innerText = userData.name;
   document.getElementById("balance").innerText = userData.balance + " ﷼";
 
-  if (userData.role === "admin") {
-    document.getElementById("addBtn").style.display = "block";
-  }
-
   loadVideos();
 });
 
+/* LOAD VIDEOS */
 async function loadVideos() {
   const snap = await getDocs(collection(db, "videos"));
+
   snap.forEach(d => {
     const v = d.data();
+
+    // فلترة حسب المنطقة
     if (!v.regions.includes(userData.region)) return;
 
     const div = document.createElement("div");
     div.className = "video";
     div.innerHTML = `
-      <iframe width="100%" height="100%"
+      <iframe
+        width="100%"
+        height="100%"
         src="https://www.youtube.com/embed/${v.youtubeId}?controls=0"
-        frameborder="0"></iframe>`;
+        frameborder="0"
+        allowfullscreen>
+      </iframe>
+    `;
     document.body.appendChild(div);
   });
 }
 
+/* UI FUNCTIONS */
 window.toggleMenu = () => {
   const d = document.getElementById("dropdown");
   d.style.display = d.style.display === "flex" ? "none" : "flex";
 };
 
-window.logout = () => signOut(auth).then(()=>location.href="login.html");
+window.logout = () => {
+  signOut(auth).then(() => location.href = "login.html");
+};
 
-window.openAdd = () => document.getElementById("addModal").style.display = "flex";
+window.openAdd = () => {
+  document.getElementById("addModal").style.display = "flex";
+};
 
+/* SAVE VIDEO */
 window.saveVideo = async () => {
-  const url = document.getElementById("yt").value;
-  const id = url.split("v=")[1];
+  const url = document.getElementById("yt").value.trim();
+  if (!url.includes("v=")) {
+    alert("رابط يوتيوب غير صحيح");
+    return;
+  }
+
+  const youtubeId = url.split("v=")[1].split("&")[0];
+
   const regions = [...document.querySelectorAll("input[type=checkbox]:checked")]
     .map(c => c.value);
 
+  if (regions.length === 0) {
+    alert("اختر منطقة واحدة على الأقل");
+    return;
+  }
+
   await addDoc(collection(db, "videos"), {
-    youtubeId: id,
+    youtubeId,
     regions,
     createdAt: new Date()
   });
