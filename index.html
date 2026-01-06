@@ -14,13 +14,18 @@ body{margin:0;background:black;color:white;font-family:Arial;height:100vh;overfl
 .dropdown{position:absolute;top:55px;right:10px;background:#1e1e1e;border-radius:10px;display:none;flex-direction:column;min-width:180px}
 .dropdown div,.dropdown button{padding:12px;color:white;background:none;border:none;text-align:right}
 .video{height:100vh;scroll-snap-align:start;position:relative;margin-top:55px}
-iframe{width:100%;height:100%;pointer-events:none}
+iframe{width:100%;height:100%} /* ✅ تم السماح بالتفاعل */
 .controls{position:absolute;right:15px;bottom:120px;display:flex;flex-direction:column;gap:12px}
 .controls button{background:rgba(0,0,0,.6);color:white;border:none;border-radius:50%;width:48px;height:48px;font-size:18px}
 .controls button.active{background:#3f8efc}
 .add-btn{position:fixed;bottom:20px;right:20px;width:55px;height:55px;border-radius:50%;background:#3f8efc;color:white;font-size:32px;border:none;cursor:pointer;z-index:1500}
 .modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);justify-content:center;align-items:center;z-index:2000}
 .modal-content{background:#111;padding:20px;border-radius:10px;width:90%;max-width:350px}
+.tap-layer{
+  position:absolute;
+  inset:0;
+  z-index:5;
+}
 </style>
 </head>
 
@@ -72,13 +77,10 @@ let currentPlaying = null;
 onAuthStateChanged(auth, async user => {
   if (!user) location.href = "login.html";
   currentUser = user;
-
   const snap = await getDoc(doc(db, "users", user.uid));
   userData = snap.data();
-
   document.getElementById("username").innerText = userData.name;
   document.getElementById("balance").innerText = userData.balance + " ﷼";
-
   loadVideos();
 });
 
@@ -106,6 +108,7 @@ async function loadVideos(){
     div.className="video";
     div.innerHTML=`
       <div id="player-${d.id}"></div>
+      <div class="tap-layer" onclick="togglePlay('${d.id}')"></div>
       <div class="controls">
         <button id="like-${d.id}">★</button>
         <button id="watch-${d.id}">✔</button>
@@ -116,6 +119,13 @@ async function loadVideos(){
     waitForYT(()=>createPlayer(d.id,v.youtubeId));
     setupLike(d.id);
   });
+}
+
+function togglePlay(id){
+  const p = players[id].player;
+  const state = p.getPlayerState();
+  if(state === YT.PlayerState.PLAYING) p.pauseVideo();
+  else p.playVideo();
 }
 
 async function handleState(e,id){
@@ -158,7 +168,6 @@ window.saveVideo=async()=>{
   if(url.includes("watch?v=")) id=url.split("watch?v=")[1].split("&")[0];
   else if(url.includes("youtu.be/")) id=url.split("youtu.be/")[1].split("?")[0];
   if(!id) return alert("رابط غير صحيح");
-
   await addDoc(collection(db,"videos"),{youtubeId:id,createdAt:Date.now()});
   location.reload();
 };
