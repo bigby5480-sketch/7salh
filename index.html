@@ -17,262 +17,173 @@ body{
   scroll-snap-type:y mandatory;
 }
 
-.topbar{
-  position:fixed;
-  top:0;
-  width:100%;
-  height:55px;
-  background:rgba(0,0,0,.85);
-  display:flex;
-  align-items:center;
-  padding:0 15px;
-  z-index:1000;
-}
-
 .video{
   height:100vh;
   scroll-snap-align:start;
   position:relative;
-  margin-top:55px;
 }
 
-iframe{width:100%;height:100%}
+iframe{
+  width:100%;
+  height:100%;
+  pointer-events:none;
+}
 
 .tap-layer{
   position:absolute;
   inset:0;
-  z-index:10;
+  z-index:5;
 }
-
-.yt-title-cover{
-  position:absolute;
-  top:0;
-  width:100%;
-  height:65px;
-  background:black;
-  z-index:11;
-}
-
-.yt-end-cover{
-  position:absolute;
-  bottom:0;
-  width:100%;
-  height:160px;
-  background:black;
-  z-index:11;
-}
-
-.reward-overlay{
-  position:absolute;
-  inset:0;
-  background:rgba(0,0,0,.85);
-  z-index:20;
-  display:none;
-  flex-direction:column;
-  justify-content:center;
-  align-items:center;
-  text-align:center;
-  cursor:pointer;
-  font-size:22px;
-}
-
-.reward-overlay span{font-size:40px}
 
 .delete-btn{
   position:absolute;
   top:15px;
   left:15px;
-  background:rgba(255,0,0,.85);
+  z-index:50;
+  background:rgba(255,0,0,0.8);
   border:none;
   color:white;
   padding:8px 12px;
-  border-radius:8px;
-  font-size:14px;
+  border-radius:6px;
   cursor:pointer;
-  z-index:30; /* أعلى من كل شيء */
 }
 
-.add-btn{
-  position:fixed;
-  bottom:20px;
-  right:20px;
-  width:55px;
-  height:55px;
-  border-radius:50%;
-  background:#3f8efc;
-  color:white;
-  font-size:32px;
-  border:none;
-  cursor:pointer;
-  z-index:2000;
-}
-
-.modal{
-  display:none;
-  position:fixed;
+.reward-overlay{
+  position:absolute;
   inset:0;
-  background:rgba(0,0,0,.7);
+  background:rgba(0,0,0,0.85);
+  z-index:30;
+  display:none;
   justify-content:center;
   align-items:center;
-  z-index:3000;
+  flex-direction:column;
+  text-align:center;
+  cursor:pointer;
 }
 
-.modal-content{
-  background:#111;
-  padding:20px;
-  border-radius:10px;
-  width:90%;
-  max-width:350px;
+.reward-overlay span{
+  font-size:36px;
+  margin-bottom:10px;
+}
+
+.yt-end-cover{
+  position:absolute;
+  bottom:0;
+  left:0;
+  width:100%;
+  height:40%;
+  background:black;
+  z-index:20;
 }
 </style>
 </head>
 
 <body>
 
-<div class="topbar">
-  <div id="balance">0 ﷼</div>
-</div>
-
 <div id="videos"></div>
-
-<button class="add-btn" onclick="openAdd()">＋</button>
-
-<div class="modal" id="addModal">
-  <div class="modal-content">
-    <h3>إضافة فيديو</h3><br>
-    <input id="yt" placeholder="رابط YouTube"><br><br>
-    <button onclick="saveVideo()">حفظ الفيديو</button>
-  </div>
-</div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import {
-  getFirestore, doc, getDoc, collection, getDocs,
-  addDoc, setDoc, updateDoc, increment, deleteDoc
+  getFirestore, collection, getDocs, addDoc,
+  doc, getDoc, setDoc, updateDoc, deleteDoc, increment
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const app = initializeApp({
-  apiKey:"AIzaSyB4tTVOD8P95EUzmOFNkco9AKI0wP1dLW0",
-  authDomain:"salh01.firebaseapp.com",
-  projectId:"salh01"
+  apiKey: "AIzaSyB4tTVOD8P95EUzmOFNkco9AKI0wP1dLW0",
+  authDomain: "salh01.firebaseapp.com",
+  projectId: "salh01"
 });
 
-const auth=getAuth();
-const db=getFirestore();
+const auth = getAuth();
+const db = getFirestore();
 
-let players={}, observer, currentPlaying=null, currentUser, userData;
+let players = {};
+let currentUser = null;
+let currentPlaying = null;
 
-onAuthStateChanged(auth, async user=>{
+onAuthStateChanged(auth, user=>{
   if(!user) location.href="login.html";
-  currentUser=user;
-  const snap=await getDoc(doc(db,"users",user.uid));
-  userData=snap.data();
-  balance.innerText=userData.balance+" ﷼";
+  currentUser = user;
   loadVideos();
 });
 
-observer=new IntersectionObserver(entries=>{
-  entries.forEach(entry=>{
-    const id=entry.target.dataset.id;
-    const p=players[id]?.player;
-    if(!p) return;
-
-    if(entry.isIntersecting){
-      if(currentPlaying && currentPlaying!==id)
-        players[currentPlaying].player.pauseVideo();
-      p.playVideo();
-      currentPlaying=id;
-    }else{
-      p.pauseVideo();
-    }
-  });
-},{threshold:0.7});
-
-function waitYT(cb){
+function waitForYT(cb){
   if(window.YT && YT.Player) cb();
-  else setTimeout(()=>waitYT(cb),100);
+  else setTimeout(()=>waitForYT(cb),100);
 }
 
-function createPlayer(id,yt){
-  players[id].player=new YT.Player(`player-${id}`,{
-    videoId:yt,
+function createPlayer(id, ytId){
+  players[id].player = new YT.Player(`player-${id}`,{
+    videoId: ytId,
     playerVars:{
       controls:0,
       rel:0,
       modestbranding:1,
-      playsinline:1,
-      iv_load_policy:3
+      autoplay:0,
+      playsinline:1
     },
-    events:{
-      onReady:e=>e.target.mute(),
-      onStateChange:e=>handleState(e,id)
-    }
+    events:{ onStateChange:e=>handleState(e,id) }
   });
 }
 
 async function loadVideos(){
-  const snap=await getDocs(collection(db,"videos"));
-  videos.innerHTML="";
+  const snap = await getDocs(collection(db,"videos"));
+  const container = document.getElementById("videos");
+  container.innerHTML="";
 
   snap.forEach(d=>{
+    const v=d.data();
     const div=document.createElement("div");
     div.className="video";
-    div.dataset.id=d.id;
 
     div.innerHTML=`
-      <button class="delete-btn" onclick="deleteVideo('${d.id}')">🗑 حذف</button>
+      <button class="delete-btn" onclick="deleteVideo('${d.id}')">حذف</button>
 
-      <div class="yt-title-cover"></div>
       <div id="player-${d.id}"></div>
+
       <div class="yt-end-cover"></div>
 
-      <div class="reward-overlay" id="reward-${d.id}" onclick="replayVideo('${d.id}')">
+      <div class="reward-overlay" id="reward-${d.id}" onclick="replay('${d.id}')">
         <span>🎉👏</span>
-        <div>تم الحصول على <b>0.5 ريال</b></div>
-        <small>اضغط لإعادة التشغيل</small>
+        <div>تم الحصول على 0.5 ريال</div>
+        <small>استمر بالمشاهدة لزيادة أرباحك</small>
       </div>
 
       <div class="tap-layer" onclick="togglePlay('${d.id}')"></div>
     `;
 
-    videos.appendChild(div);
-    observer.observe(div);
+    container.appendChild(div);
 
-    players[d.id]={};
-    waitYT(()=>createPlayer(d.id,d.data().youtubeId));
-
-    checkReward(d.id);
+    players[d.id]={youtubeId:v.youtubeId};
+    waitForYT(()=>createPlayer(d.id,v.youtubeId));
   });
-}
 
-async function deleteVideo(id){
-  if(!confirm("هل أنت متأكد من حذف الفيديو؟")) return;
-  await deleteDoc(doc(db,"videos",id));
-  location.reload();
-}
-
-async function checkReward(id){
-  const ref=doc(db,"interactions",`${currentUser.uid}_${id}`);
-  const snap=await getDoc(ref);
-  if(snap.exists())
-    document.getElementById(`reward-${id}`).style.display="flex";
+  observeVideos();
 }
 
 function togglePlay(id){
   const p=players[id].player;
-  p.unMute();
-  p.getPlayerState()===YT.PlayerState.PLAYING ? p.pauseVideo() : p.playVideo();
+  if(!p) return;
+  p.getPlayerState()===1 ? p.pauseVideo() : p.playVideo();
 }
 
-window.replayVideo=id=>{
+function replay(id){
+  document.getElementById(`reward-${id}`).style.display="none";
   const p=players[id].player;
   p.seekTo(0);
   p.playVideo();
-};
+}
 
 async function handleState(e,id){
+  if(e.data===YT.PlayerState.PLAYING){
+    if(currentPlaying && currentPlaying!==id){
+      players[currentPlaying].player.pauseVideo();
+    }
+    currentPlaying=id;
+  }
+
   if(e.data===YT.PlayerState.ENDED){
     const ref=doc(db,"interactions",`${currentUser.uid}_${id}`);
     const snap=await getDoc(ref);
@@ -282,23 +193,28 @@ async function handleState(e,id){
       await updateDoc(doc(db,"users",currentUser.uid),{
         balance:increment(0.5)
       });
-      userData.balance+=0.5;
-      balance.innerText=userData.balance+" ﷼";
     }
 
     document.getElementById(`reward-${id}`).style.display="flex";
   }
 }
 
-window.openAdd=()=>addModal.style.display="flex";
+function observeVideos(){
+  const obs=new IntersectionObserver(entries=>{
+    entries.forEach(e=>{
+      if(e.isIntersecting){
+        const id=e.target.querySelector("[id^='player-']").id.replace("player-","");
+        players[id].player.playVideo();
+      }
+    });
+  },{threshold:0.7});
 
-window.saveVideo=async()=>{
-  const url=yt.value.trim();
-  let id="";
-  if(url.includes("watch?v=")) id=url.split("watch?v=")[1].split("&")[0];
-  else if(url.includes("youtu.be/")) id=url.split("youtu.be/")[1].split("?")[0];
-  if(!id) return alert("رابط غير صحيح");
-  await addDoc(collection(db,"videos"),{youtubeId:id});
+  document.querySelectorAll(".video").forEach(v=>obs.observe(v));
+}
+
+window.deleteVideo=async(id)=>{
+  if(!confirm("هل تريد حذف الفيديو؟")) return;
+  await deleteDoc(doc(db,"videos",id));
   location.reload();
 };
 </script>
