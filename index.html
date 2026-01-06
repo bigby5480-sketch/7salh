@@ -3,7 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <title>الرئيسية</title>
-
 <script src="https://www.youtube.com/iframe_api"></script>
 
 <style>
@@ -35,14 +34,29 @@ iframe{
   z-index:5;
 }
 
+.add-btn{
+  position:fixed;
+  bottom:20px;
+  right:20px;
+  width:55px;
+  height:55px;
+  border-radius:50%;
+  background:#3f8efc;
+  color:white;
+  font-size:30px;
+  border:none;
+  z-index:100;
+  cursor:pointer;
+}
+
 .delete-btn{
   position:absolute;
   top:15px;
   left:15px;
-  z-index:50;
-  background:rgba(255,0,0,0.8);
-  border:none;
+  z-index:200;
+  background:red;
   color:white;
+  border:none;
   padding:8px 12px;
   border-radius:6px;
   cursor:pointer;
@@ -75,12 +89,40 @@ iframe{
   background:black;
   z-index:20;
 }
+
+.modal{
+  display:none;
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.7);
+  justify-content:center;
+  align-items:center;
+  z-index:500;
+}
+
+.modal-content{
+  background:#111;
+  padding:20px;
+  border-radius:10px;
+  width:90%;
+  max-width:350px;
+}
 </style>
 </head>
 
 <body>
 
 <div id="videos"></div>
+
+<button class="add-btn" onclick="openAdd()">＋</button>
+
+<div class="modal" id="addModal">
+  <div class="modal-content">
+    <h3>إضافة فيديو</h3><br>
+    <input id="yt" placeholder="رابط YouTube"><br><br>
+    <button onclick="saveVideo()">حفظ الفيديو</button>
+  </div>
+</div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -100,12 +142,12 @@ const auth = getAuth();
 const db = getFirestore();
 
 let players = {};
-let currentUser = null;
+let currentUser;
 let currentPlaying = null;
 
-onAuthStateChanged(auth, user=>{
+onAuthStateChanged(auth,user=>{
   if(!user) location.href="login.html";
-  currentUser = user;
+  currentUser=user;
   loadVideos();
 });
 
@@ -114,24 +156,18 @@ function waitForYT(cb){
   else setTimeout(()=>waitForYT(cb),100);
 }
 
-function createPlayer(id, ytId){
-  players[id].player = new YT.Player(`player-${id}`,{
-    videoId: ytId,
-    playerVars:{
-      controls:0,
-      rel:0,
-      modestbranding:1,
-      autoplay:0,
-      playsinline:1
-    },
-    events:{ onStateChange:e=>handleState(e,id) }
+function createPlayer(id,yt){
+  players[id].player=new YT.Player(`player-${id}`,{
+    videoId:yt,
+    playerVars:{controls:0,rel:0,modestbranding:1,playsinline:1},
+    events:{onStateChange:e=>handleState(e,id)}
   });
 }
 
 async function loadVideos(){
-  const snap = await getDocs(collection(db,"videos"));
-  const container = document.getElementById("videos");
-  container.innerHTML="";
+  const snap=await getDocs(collection(db,"videos"));
+  const c=document.getElementById("videos");
+  c.innerHTML="";
 
   snap.forEach(d=>{
     const v=d.data();
@@ -140,21 +176,16 @@ async function loadVideos(){
 
     div.innerHTML=`
       <button class="delete-btn" onclick="deleteVideo('${d.id}')">حذف</button>
-
       <div id="player-${d.id}"></div>
-
       <div class="yt-end-cover"></div>
-
       <div class="reward-overlay" id="reward-${d.id}" onclick="replay('${d.id}')">
         <span>🎉👏</span>
         <div>تم الحصول على 0.5 ريال</div>
-        <small>استمر بالمشاهدة لزيادة أرباحك</small>
+        <small>شاهد المزيد لزيادة أرباحك</small>
       </div>
-
       <div class="tap-layer" onclick="togglePlay('${d.id}')"></div>
     `;
-
-    container.appendChild(div);
+    c.appendChild(div);
 
     players[d.id]={youtubeId:v.youtubeId};
     waitForYT(()=>createPlayer(d.id,v.youtubeId));
@@ -165,34 +196,29 @@ async function loadVideos(){
 
 function togglePlay(id){
   const p=players[id].player;
-  if(!p) return;
-  p.getPlayerState()===1 ? p.pauseVideo() : p.playVideo();
+  p.getPlayerState()===1?p.pauseVideo():p.playVideo();
 }
 
 function replay(id){
   document.getElementById(`reward-${id}`).style.display="none";
-  const p=players[id].player;
-  p.seekTo(0);
-  p.playVideo();
+  players[id].player.seekTo(0);
+  players[id].player.playVideo();
 }
 
 async function handleState(e,id){
-  if(e.data===YT.PlayerState.PLAYING){
-    if(currentPlaying && currentPlaying!==id){
+  if(e.data===1){
+    if(currentPlaying && currentPlaying!==id)
       players[currentPlaying].player.pauseVideo();
-    }
     currentPlaying=id;
   }
 
-  if(e.data===YT.PlayerState.ENDED){
+  if(e.data===0){
     const ref=doc(db,"interactions",`${currentUser.uid}_${id}`);
     const snap=await getDoc(ref);
 
     if(!snap.exists()){
       await setDoc(ref,{watched:true});
-      await updateDoc(doc(db,"users",currentUser.uid),{
-        balance:increment(0.5)
-      });
+      await updateDoc(doc(db,"users",currentUser.uid),{balance:increment(0.5)});
     }
 
     document.getElementById(`reward-${id}`).style.display="flex";
@@ -217,7 +243,18 @@ window.deleteVideo=async(id)=>{
   await deleteDoc(doc(db,"videos",id));
   location.reload();
 };
-</script>
 
+window.openAdd=()=>document.getElementById("addModal").style.display="flex";
+
+window.saveVideo=async()=>{
+  const url=document.getElementById("yt").value.trim();
+  let id="";
+  if(url.includes("watch?v=")) id=url.split("watch?v=")[1].split("&")[0];
+  else if(url.includes("youtu.be/")) id=url.split("youtu.be/")[1].split("?")[0];
+  if(!id) return alert("رابط غير صحيح");
+  await addDoc(collection(db,"videos"),{youtubeId:id,createdAt:Date.now()});
+  location.reload();
+};
+</script>
 </body>
 </html>
