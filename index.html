@@ -68,10 +68,40 @@ iframe{
   width:48px;
   height:48px;
   font-size:18px;
+  cursor:pointer;
 }
 
-.controls button.active{
+.add-btn{
+  position:fixed;
+  bottom:20px;
+  right:20px;
+  width:55px;
+  height:55px;
+  border-radius:50%;
   background:#3f8efc;
+  color:white;
+  font-size:32px;
+  border:none;
+  cursor:pointer;
+  z-index:9999;
+}
+
+.modal{
+  display:none;
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.7);
+  justify-content:center;
+  align-items:center;
+  z-index:10000;
+}
+
+.modal-content{
+  background:#111;
+  padding:20px;
+  border-radius:10px;
+  width:90%;
+  max-width:350px;
 }
 </style>
 </head>
@@ -79,18 +109,26 @@ iframe{
 <body>
 
 <div class="topbar">
-  <div id="balance">0 ﷼</div>
-  <div>⋯</div>
+  <div>الرئيسية</div>
 </div>
 
 <div id="videos"></div>
+
+<button class="add-btn" onclick="openAdd()">＋</button>
+
+<div class="modal" id="addModal">
+  <div class="modal-content">
+    <h3>إضافة فيديو</h3><br>
+    <input id="yt" placeholder="رابط YouTube" style="width:100%"><br><br>
+    <button onclick="saveVideo()">حفظ الفيديو</button>
+  </div>
+</div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import {
-  getFirestore, doc, getDoc, collection, getDocs,
-  setDoc, updateDoc, increment, deleteDoc
+  getFirestore, collection, getDocs, addDoc, deleteDoc, doc
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const app = initializeApp({
@@ -102,13 +140,11 @@ const app = initializeApp({
 const auth = getAuth();
 const db = getFirestore();
 
-let currentUser;
 let players = {};
 let observer;
 
-onAuthStateChanged(auth, async user=>{
+onAuthStateChanged(auth, user=>{
   if(!user) location.href="login.html";
-  currentUser=user;
   loadVideos();
 });
 
@@ -133,20 +169,23 @@ function createPlayer(id, ytId){
 async function loadVideos(){
   const snap = await getDocs(collection(db,"videos"));
   videos.innerHTML="";
+  players={};
 
   snap.forEach(d=>{
     const div=document.createElement("div");
     div.className="video";
     div.dataset.id=d.id;
+
     div.innerHTML=`
       <div class="player-wrap">
         <div id="player-${d.id}"></div>
       </div>
       <div class="controls">
         <button onclick="deleteVideo('${d.id}')">🗑</button>
-      </div>`;
-    videos.appendChild(div);
+      </div>
+    `;
 
+    videos.appendChild(div);
     players[d.id]={};
     waitYT(()=>createPlayer(d.id,d.data().youtubeId));
   });
@@ -180,8 +219,22 @@ function stopAll(except){
   });
 }
 
+window.openAdd=()=>{
+  addModal.style.display="flex";
+};
+
+window.saveVideo=async()=>{
+  const url=yt.value.trim();
+  let id="";
+  if(url.includes("watch?v=")) id=url.split("watch?v=")[1].split("&")[0];
+  else if(url.includes("youtu.be/")) id=url.split("youtu.be/")[1].split("?")[0];
+  if(!id) return alert("رابط غير صحيح");
+  await addDoc(collection(db,"videos"),{youtubeId:id,createdAt:Date.now()});
+  location.reload();
+};
+
 window.deleteVideo=async(id)=>{
-  if(!confirm("هل تريد حذف الفيديو؟")) return;
+  if(!confirm("هل تريد حذف هذا الفيديو؟")) return;
   await deleteDoc(doc(db,"videos",id));
   location.reload();
 };
