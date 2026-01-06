@@ -7,24 +7,116 @@
 <script src="https://www.youtube.com/iframe_api"></script>
 
 <style>
-body{margin:0;background:black;color:white;font-family:Arial;height:100vh;overflow-y:scroll;scroll-snap-type:y mandatory}
-.topbar{position:fixed;top:0;width:100%;height:55px;background:rgba(0,0,0,.85);display:flex;justify-content:space-between;align-items:center;padding:0 15px;z-index:1000}
+body{
+  margin:0;
+  background:black;
+  color:white;
+  font-family:Arial;
+  height:100vh;
+  overflow-y:scroll;
+  scroll-snap-type:y mandatory;
+}
+.topbar{
+  position:fixed;
+  top:0;
+  width:100%;
+  height:55px;
+  background:rgba(0,0,0,.85);
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:0 15px;
+  z-index:1000;
+}
 .balance{font-size:16px}
 .dots{font-size:28px;cursor:pointer}
-.dropdown{position:absolute;top:55px;right:10px;background:#1e1e1e;border-radius:10px;display:none;flex-direction:column;min-width:180px}
-.dropdown div,.dropdown button{padding:12px;color:white;background:none;border:none;text-align:right}
-.video{height:100vh;scroll-snap-align:start;position:relative;margin-top:55px}
-iframe{width:100%;height:100%} /* ✅ تم السماح بالتفاعل */
-.controls{position:absolute;right:15px;bottom:120px;display:flex;flex-direction:column;gap:12px}
-.controls button{background:rgba(0,0,0,.6);color:white;border:none;border-radius:50%;width:48px;height:48px;font-size:18px}
-.controls button.active{background:#3f8efc}
-.add-btn{position:fixed;bottom:20px;right:20px;width:55px;height:55px;border-radius:50%;background:#3f8efc;color:white;font-size:32px;border:none;cursor:pointer;z-index:1500}
-.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);justify-content:center;align-items:center;z-index:2000}
-.modal-content{background:#111;padding:20px;border-radius:10px;width:90%;max-width:350px}
-.tap-layer{
+.dropdown{
+  position:absolute;
+  top:55px;
+  right:10px;
+  background:#1e1e1e;
+  border-radius:10px;
+  display:none;
+  flex-direction:column;
+  min-width:180px;
+}
+.dropdown div,.dropdown button{
+  padding:12px;
+  color:white;
+  background:none;
+  border:none;
+  text-align:right;
+}
+
+.video{
+  height:calc(100vh - 55px);
+  margin-top:55px;
+  scroll-snap-align:start;
+  position:relative;
+}
+
+.player-wrap{
   position:absolute;
   inset:0;
+  z-index:1;
+}
+
+iframe{
+  width:100%;
+  height:100%;
+  pointer-events:auto;
+}
+
+.controls{
+  position:absolute;
+  right:15px;
+  bottom:120px;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
   z-index:5;
+}
+.controls button{
+  background:rgba(0,0,0,.6);
+  color:white;
+  border:none;
+  border-radius:50%;
+  width:48px;
+  height:48px;
+  font-size:18px;
+}
+.controls button.active{background:#3f8efc}
+
+.add-btn{
+  position:fixed;
+  bottom:20px;
+  right:20px;
+  width:55px;
+  height:55px;
+  border-radius:50%;
+  background:#3f8efc;
+  color:white;
+  font-size:32px;
+  border:none;
+  cursor:pointer;
+  z-index:1500;
+}
+
+.modal{
+  display:none;
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.7);
+  justify-content:center;
+  align-items:center;
+  z-index:2000;
+}
+.modal-content{
+  background:#111;
+  padding:20px;
+  border-radius:10px;
+  width:90%;
+  max-width:350px;
 }
 </style>
 </head>
@@ -79,8 +171,8 @@ onAuthStateChanged(auth, async user => {
   currentUser = user;
   const snap = await getDoc(doc(db, "users", user.uid));
   userData = snap.data();
-  document.getElementById("username").innerText = userData.name;
-  document.getElementById("balance").innerText = userData.balance + " ﷼";
+  username.innerText = userData.name;
+  balance.innerText = userData.balance + " ﷼";
   loadVideos();
 });
 
@@ -99,21 +191,21 @@ function createPlayer(id, ytId){
 
 async function loadVideos(){
   const snap = await getDocs(collection(db,"videos"));
-  const container = document.getElementById("videos");
-  container.innerHTML = "";
+  videos.innerHTML = "";
 
   snap.forEach(d=>{
     const v = d.data();
     const div = document.createElement("div");
     div.className="video";
     div.innerHTML=`
-      <div id="player-${d.id}"></div>
-      <div class="tap-layer" onclick="togglePlay('${d.id}')"></div>
+      <div class="player-wrap" onclick="togglePlay('${d.id}')">
+        <div id="player-${d.id}"></div>
+      </div>
       <div class="controls">
         <button id="like-${d.id}">★</button>
         <button id="watch-${d.id}">✔</button>
       </div>`;
-    container.appendChild(div);
+    videos.appendChild(div);
 
     players[d.id]={youtubeId:v.youtubeId};
     waitForYT(()=>createPlayer(d.id,v.youtubeId));
@@ -123,9 +215,9 @@ async function loadVideos(){
 
 function togglePlay(id){
   const p = players[id].player;
+  if(!p) return;
   const state = p.getPlayerState();
-  if(state === YT.PlayerState.PLAYING) p.pauseVideo();
-  else p.playVideo();
+  state === YT.PlayerState.PLAYING ? p.pauseVideo() : p.playVideo();
 }
 
 async function handleState(e,id){
@@ -143,7 +235,7 @@ async function handleState(e,id){
       await setDoc(ref,{watched:true});
       await updateDoc(doc(db,"users",currentUser.uid),{balance:increment(0.5)});
       userData.balance+=0.5;
-      document.getElementById("balance").innerText=userData.balance+" ﷼";
+      balance.innerText=userData.balance+" ﷼";
     }
     document.getElementById(`watch-${id}`).classList.add("active");
   }
@@ -160,10 +252,10 @@ async function setupLike(id){
   };
 }
 
-window.openAdd=()=>document.getElementById("addModal").style.display="flex";
+window.openAdd=()=>addModal.style.display="flex";
 
 window.saveVideo=async()=>{
-  const url=document.getElementById("yt").value.trim();
+  const url=yt.value.trim();
   let id="";
   if(url.includes("watch?v=")) id=url.split("watch?v=")[1].split("&")[0];
   else if(url.includes("youtu.be/")) id=url.split("youtu.be/")[1].split("?")[0];
@@ -173,14 +265,12 @@ window.saveVideo=async()=>{
 };
 
 window.toggleMenu=()=>{
-  const d=document.getElementById("dropdown");
-  d.style.display=d.style.display==="flex"?"none":"flex";
+  dropdown.style.display = dropdown.style.display==="flex" ? "none" : "flex";
 };
 
 document.addEventListener("click",e=>{
-  const m=document.getElementById("dropdown");
-  const d=document.querySelector(".dots");
-  if(!m.contains(e.target)&&!d.contains(e.target)) m.style.display="none";
+  if(!dropdown.contains(e.target) && !e.target.classList.contains("dots"))
+    dropdown.style.display="none";
 });
 
 window.logout=()=>signOut(auth).then(()=>location.href="login.html");
