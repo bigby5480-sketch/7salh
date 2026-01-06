@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>إنشاء حساب</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; font-family: 'Cairo', sans-serif; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #f0f4f8, #d9e2ec);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .card {
+      background: #fff;
+      width: 420px;
+      padding: 30px;
+      border-radius: 16px;
+      box-shadow: 0 20px 40px rgba(0,0,0,.08);
+    }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #334e68;
+    }
+
+    .form-group { margin-bottom: 12px; }
+
+    label {
+      display: block;
+      margin-bottom: 5px;
+      color: #627d98;
+      font-size: 14px;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 11px;
+      border-radius: 10px;
+      border: 1px solid #cbd2d9;
+      font-size: 14px;
+      outline: none;
+    }
+
+    input:focus, select:focus {
+      border-color: #3f8efc;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 12px;
+      background: #3f8efc;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+
+    .error {
+      color: red;
+      text-align: center;
+      margin-top: 10px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <h2>إنشاء حساب</h2>
+
+  <div class="form-group">
+    <label>الاسم</label>
+    <input type="text" id="name" required>
+  </div>
+
+  <div class="form-group">
+    <label>البريد الإلكتروني</label>
+    <input type="email" id="email" required>
+  </div>
+
+  <div class="form-group">
+    <label>كلمة المرور</label>
+    <input type="password" id="password" required>
+  </div>
+
+  <div class="form-group">
+    <label>إعادة كلمة المرور</label>
+    <input type="password" id="confirmPassword" required>
+  </div>
+
+  <div class="form-group">
+    <label>الفئة العمرية</label>
+    <select id="age" required>
+      <option value="">اختر</option>
+      <option>15 - 21</option>
+      <option>22 - 28</option>
+      <option>29 - 35</option>
+      <option>36 - 40</option>
+      <option>+40</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label>المنطقة</label>
+    <select id="region" required>
+      <option value="">اختر</option>
+      <option>المنطقة الشرقية</option>
+      <option>المنطقة الوسطى</option>
+      <option>المنطقة الغربية</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label>رقم الآيبان</label>
+    <input type="text" id="iban" placeholder="SAxxxxxxxxxxxxxxx" required>
+  </div>
+
+  <button id="registerBtn">إنشاء الحساب</button>
+
+  <div class="error" id="errorMsg"></div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { getAuth, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+  import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyB4tTVOD8P95EUzmOFNkco9AKI0wP1dLW0",
+    authDomain: "salh01.firebaseapp.com",
+    projectId: "salh01",
+    storageBucket: "salh01.firebasestorage.app",
+    messagingSenderId: "300533907694",
+    appId: "1:300533907694:web:2d4687cb5f32ead32133ff"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  document.getElementById("registerBtn").addEventListener("click", async () => {
+    const name = nameInput.value = document.getElementById("name").value.trim();
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+    const confirmPassword = document.getElementById("confirmPassword").value;
+    const age = document.getElementById("age").value;
+    const region = document.getElementById("region").value;
+    const iban = document.getElementById("iban").value.trim();
+    const errorMsg = document.getElementById("errorMsg");
+
+    errorMsg.textContent = "";
+
+    if (!name || !email || !password || !confirmPassword || !age || !region || !iban) {
+      errorMsg.textContent = "جميع الحقول مطلوبة";
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      errorMsg.textContent = "كلمتا المرور غير متطابقتين";
+      return;
+    }
+
+    if (!/^SA\d{15}$/.test(iban)) {
+      errorMsg.textContent = "الآيبان يجب أن يبدأ بـ SA ويتبعه 15 رقمًا";
+      return;
+    }
+
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const uid = userCredential.user.uid;
+
+      await setDoc(doc(db, "users", uid), {
+        name,
+        email,
+        age,
+        region,
+        iban,
+        createdAt: new Date()
+      });
+
+      window.location.href = "home.html";
+
+    } catch (error) {
+      if (error.code === "auth/email-already-in-use") {
+        errorMsg.textContent = "البريد الإلكتروني مسجل مسبقًا";
+      } else {
+        errorMsg.textContent = "حدث خطأ، حاول مرة أخرى";
+      }
+    }
+  });
+</script>
+
+</body>
+</html>
