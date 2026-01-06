@@ -37,12 +37,16 @@ body{
   margin-top:55px;
 }
 
-iframe{width:100%;height:100%}
+iframe{
+  width:100%;
+  height:100%;
+}
 
 .tap-layer{
   position:absolute;
   inset:0;
-  z-index:6;
+  z-index:15;
+  cursor:pointer;
 }
 
 .yt-title-cover{
@@ -52,6 +56,7 @@ iframe{width:100%;height:100%}
   height:65px;
   background:rgba(0,0,0,.85);
   z-index:10;
+  pointer-events:none;
 }
 
 .yt-end-cover{
@@ -61,6 +66,7 @@ iframe{width:100%;height:100%}
   height:140px;
   background:black;
   z-index:10;
+  pointer-events:none;
 }
 
 .controls{
@@ -83,7 +89,9 @@ iframe{width:100%;height:100%}
   font-size:18px;
 }
 
-.controls button.active{background:#3f8efc}
+.controls button.active{
+  background:#3f8efc;
+}
 
 .add-btn{
   position:fixed;
@@ -124,10 +132,6 @@ iframe{width:100%;height:100%}
 
 <div class="topbar">
   <div id="balance">0 ﷼</div>
-  <div onclick="toggleMenu()">⋯</div>
-  <div id="dropdown" style="display:none">
-    <button onclick="logout()">تسجيل الخروج</button>
-  </div>
 </div>
 
 <div id="videos"></div>
@@ -144,7 +148,7 @@ iframe{width:100%;height:100%}
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import {
   getFirestore, doc, getDoc, collection, getDocs,
   addDoc, setDoc, deleteDoc, updateDoc, increment
@@ -159,7 +163,10 @@ const app = initializeApp({
 const auth = getAuth();
 const db = getFirestore();
 
-let players={}, currentPlaying=null, currentUser, userData;
+let players = {};
+let currentPlaying = null;
+let currentUser, userData;
+let observer;
 
 onAuthStateChanged(auth, async user=>{
   if(!user) location.href="login.html";
@@ -171,31 +178,58 @@ onAuthStateChanged(auth, async user=>{
 });
 
 function waitYT(cb){
-  if(window.YT&&YT.Player) cb();
+  if(window.YT && YT.Player) cb();
   else setTimeout(()=>waitYT(cb),100);
 }
 
-function createPlayer(id,yt){
-  players[id].player=new YT.Player(`player-${id}`,{
-    videoId:yt,
+function createPlayer(id, yt){
+  players[id].player = new YT.Player(`player-${id}`,{
+    videoId: yt,
     playerVars:{
       controls:0,
       rel:0,
       modestbranding:1,
       playsinline:1,
-      iv_load_policy:3
+      iv_load_policy:3,
+      autoplay:0
     },
-    events:{onStateChange:e=>handleState(e,id)}
+    events:{
+      onReady:e=>{
+        e.target.mute();
+      },
+      onStateChange:e=>handleState(e,id)
+    }
   });
 }
 
+observer = new IntersectionObserver(entries=>{
+  entries.forEach(entry=>{
+    const id = entry.target.dataset.id;
+    const p = players[id]?.player;
+    if(!p) return;
+
+    if(entry.isIntersecting){
+      if(currentPlaying && currentPlaying !== id){
+        players[currentPlaying].player.pauseVideo();
+      }
+      p.playVideo();
+      currentPlaying = id;
+    }else{
+      p.pauseVideo();
+    }
+  });
+},{threshold:0.7});
+
 async function loadVideos(){
-  const snap=await getDocs(collection(db,"videos"));
+  const snap = await getDocs(collection(db,"videos"));
   videos.innerHTML="";
+
   snap.forEach(d=>{
-    const v=d.data();
-    const div=document.createElement("div");
+    const v = d.data();
+    const div = document.createElement("div");
     div.className="video";
+    div.dataset.id = d.id;
+
     div.innerHTML=`
       <div class="yt-title-cover"></div>
       <div id="player-${d.id}"></div>
@@ -204,60 +238,64 @@ async function loadVideos(){
       <div class="controls">
         <button id="watch-${d.id}">✔</button>
         <button onclick="deleteVideo('${d.id}')">🗑</button>
-      </div>`;
+      </div>
+    `;
+
     videos.appendChild(div);
+    observer.observe(div);
+
     players[d.id]={youtubeId:v.youtubeId};
     waitYT(()=>createPlayer(d.id,v.youtubeId));
   });
 }
 
 function togglePlay(id){
-  const p=players[id].player;
-  if(p.getPlayerState()===YT.PlayerState.PLAYING) p.pauseVideo();
-  else p.playVideo();
+  const p = players[id].player;
+  if(!p) return;
+
+  p.unMute();
+
+  if(p.getPlayerState() === YT.PlayerState.PLAYING){
+    p.pauseVideo();
+  }else{
+    p.playVideo();
+  }
 }
 
 async function handleState(e,id){
-  if(e.data===YT.PlayerState.PLAYING){
-    if(currentPlaying&&currentPlaying!==id)
-      players[currentPlaying].player.pauseVideo();
-    currentPlaying=id;
-  }
-
-  if(e.data===YT.PlayerState.ENDED){
-    const ref=doc(db,"interactions",`${currentUser.uid}_${id}`);
-    const snap=await getDoc(ref);
+  if(e.data === YT.PlayerState.ENDED){
+    const ref = doc(db,"interactions",`${currentUser.uid}_${id}`);
+    const snap = await getDoc(ref);
     if(!snap.exists()){
       await setDoc(ref,{watched:true});
       await updateDoc(doc(db,"users",currentUser.uid),{
-        balance:increment(0.5)
+        balance: increment(0.5)
       });
-      userData.balance+=0.5;
-      balance.innerText=userData.balance+" ﷼";
+      userData.balance += 0.5;
+      balance.innerText = userData.balance + " ﷼";
     }
     document.getElementById(`watch-${id}`).classList.add("active");
   }
 }
 
-window.deleteVideo=async(id)=>{
+window.deleteVideo = async(id)=>{
   if(!confirm("هل تريد حذف الفيديو؟")) return;
   await deleteDoc(doc(db,"videos",id));
   location.reload();
 };
 
-window.openAdd=()=>addModal.style.display="flex";
+window.openAdd = ()=> addModal.style.display="flex";
 
-window.saveVideo=async()=>{
-  const url=yt.value.trim();
+window.saveVideo = async()=>{
+  const url = yt.value.trim();
   let id="";
-  if(url.includes("watch?v=")) id=url.split("watch?v=")[1].split("&")[0];
-  else if(url.includes("youtu.be/")) id=url.split("youtu.be/")[1];
+  if(url.includes("watch?v=")) id = url.split("watch?v=")[1].split("&")[0];
+  else if(url.includes("youtu.be/")) id = url.split("youtu.be/")[1].split("?")[0];
   if(!id) return alert("رابط غير صحيح");
   await addDoc(collection(db,"videos"),{youtubeId:id});
   location.reload();
 };
-
-window.logout=()=>signOut(auth);
 </script>
+
 </body>
 </html>
