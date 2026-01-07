@@ -117,6 +117,22 @@ iframe{
   cursor:pointer;
 }
 
+/* ===== زر الإضافة ===== */
+.add-btn{
+  position:fixed;
+  bottom:20px;
+  right:20px;
+  width:55px;
+  height:55px;
+  border-radius:50%;
+  background:#3f8efc;
+  color:white;
+  font-size:30px;
+  border:none;
+  z-index:1000;
+  cursor:pointer;
+}
+
 /* ===== المودال ===== */
 .modal{
   display:none;
@@ -159,6 +175,18 @@ iframe{
 </div>
 
 <div id="videos"></div>
+
+<!-- زر إضافة فيديو -->
+<button class="add-btn" onclick="openAdd()">＋</button>
+
+<!-- مودال إضافة فيديو -->
+<div class="modal" id="addModal">
+  <div class="modal-content">
+    <h3>إضافة فيديو</h3><br>
+    <input id="yt" placeholder="رابط YouTube" style="width:100%"><br><br>
+    <button onclick="saveVideo()">حفظ الفيديو</button>
+  </div>
+</div>
 
 <!-- مودال الإحصائيات -->
 <div class="modal" id="chartModal">
@@ -272,7 +300,7 @@ async function showReward(id){
 }
 
 function replay(id){
-  reward=document.getElementById(`reward-${id}`);
+  const reward=document.getElementById(`reward-${id}`);
   reward.style.display="none";
   players[id].player.seekTo(0);
   players[id].player.playVideo();
@@ -285,7 +313,7 @@ function handleState(e,id){
     currentPlaying=id;
 
     const p=players[id].player;
-    const i=setInterval(async()=>{
+    const i=setInterval(()=>{
       const d=p.getDuration(), c=p.getCurrentTime();
       if(d && c>=d-0.4){
         clearInterval(i);
@@ -311,12 +339,37 @@ function observeVideos(){
   document.querySelectorAll(".video").forEach(v=>obs.observe(v));
 }
 
+/* ===== الإضافة ===== */
+window.openAdd=()=>addModal.style.display="flex";
+
+window.saveVideo=async()=>{
+  const url=yt.value.trim();
+  let id="";
+  if(url.includes("watch?v="))
+    id=url.split("watch?v=")[1].split("&")[0];
+  else if(url.includes("youtu.be/"))
+    id=url.split("youtu.be/")[1].split("?")[0];
+
+  if(!id) return alert("رابط غير صحيح");
+
+  await addDoc(collection(db,"videos"),{
+    youtubeId:id,
+    createdAt:Date.now()
+  });
+
+  yt.value="";
+  addModal.style.display="none";
+  loadVideos();
+};
+
+/* ===== الحذف ===== */
 window.deleteVideo=async id=>{
   if(!confirm("حذف الفيديو؟")) return;
   await deleteDoc(doc(db,"videos",id));
   document.getElementById(`player-${id}`).closest(".video").remove();
 };
 
+/* ===== الإحصائيات ===== */
 window.showStats=async videoId=>{
   chartModal.style.display="flex";
   const snap=await getDocs(collection(db,"interactions"));
@@ -337,6 +390,7 @@ window.showStats=async videoId=>{
 
 window.closeChart=()=>chartModal.style.display="none";
 
+/* ===== القائمة ===== */
 window.toggleMenu=()=>dropdown.style.display=
   dropdown.style.display==="block"?"none":"block";
 
