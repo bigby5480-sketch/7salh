@@ -2,18 +2,8 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-
-<!-- ===== PWA ===== -->
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#000000">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black">
-<meta name="apple-mobile-web-app-title" content="7salh">
-
 <title>الرئيسية</title>
-
 <script src="https://www.youtube.com/iframe_api"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
 body{
@@ -42,11 +32,31 @@ body{
   border-bottom:1px solid #222;
 }
 
-.balance{ color:#3f8efc; font-weight:bold; }
+.balance{
+  font-size:16px;
+  font-weight:bold;
+  color:#3f8efc;
+}
 
-.user-menu{ position:relative; }
-.user-name{ cursor:pointer; display:flex; gap:6px; align-items:center; }
-.arrow{ font-size:12px; opacity:.7; }
+.balance .sar{
+  margin-right:4px;
+}
+
+.user-menu{
+  position:relative;
+}
+
+.user-name{
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+
+.arrow{
+  font-size:12px;
+  opacity:.7;
+}
 
 .dropdown{
   position:absolute;
@@ -54,11 +64,20 @@ body{
   left:0;
   background:#1a1a1a;
   border-radius:8px;
+  overflow:hidden;
   display:none;
   min-width:160px;
+  box-shadow:0 5px 20px rgba(0,0,0,.5);
 }
-.dropdown div{ padding:10px; cursor:pointer; }
-.dropdown div:hover{ background:#333; }
+
+.dropdown div{
+  padding:10px;
+  cursor:pointer;
+}
+
+.dropdown div:hover{
+  background:#333;
+}
 
 /* ===== الفيديوهات ===== */
 #videos{ margin-top:55px; }
@@ -73,38 +92,14 @@ iframe{
   width:100%;
   height:100%;
   pointer-events:none;
-  object-fit:contain;
-  background:black;
 }
 
-.tap-layer{ position:absolute; inset:0; z-index:5; }
-
-.delete-btn,.stats-btn{
-  position:absolute;
-  top:15px;
-  z-index:9999;
-  border:none;
-  padding:6px 10px;
-  border-radius:6px;
-  cursor:pointer;
-}
-
-.delete-btn{ left:15px; background:red; color:white; }
-.stats-btn{ right:15px; background:#222; color:white; }
-
-.reward-overlay{
+.tap-layer{
   position:absolute;
   inset:0;
-  background:rgba(0,0,0,.85);
-  display:none;
-  z-index:30;
-  justify-content:center;
-  align-items:center;
-  flex-direction:column;
-  cursor:pointer;
+  z-index:5;
 }
 
-/* ===== زر الإضافة ===== */
 .add-btn{
   position:fixed;
   bottom:20px;
@@ -116,11 +111,50 @@ iframe{
   color:white;
   font-size:30px;
   border:none;
-  z-index:1000;
+  z-index:100;
   cursor:pointer;
 }
 
-/* ===== المودالات ===== */
+.delete-btn{
+  position:absolute;
+  top:15px;
+  left:15px;
+  z-index:9999;
+  background:red;
+  color:white;
+  border:none;
+  padding:8px 12px;
+  border-radius:6px;
+  cursor:pointer;
+}
+
+.reward-overlay{
+  position:absolute;
+  inset:0;
+  background:rgba(0,0,0,0.85);
+  z-index:30;
+  display:none;
+  justify-content:center;
+  align-items:center;
+  flex-direction:column;
+  cursor:pointer;
+}
+
+.reward-overlay span{
+  font-size:36px;
+}
+
+.yt-end-cover{
+  position:absolute;
+  bottom:0;
+  left:0;
+  width:100%;
+  height:40%;
+  background:black;
+  z-index:20;
+}
+
+/* ===== المودال ===== */
 .modal{
   display:none;
   position:fixed;
@@ -130,6 +164,7 @@ iframe{
   align-items:center;
   z-index:500;
 }
+
 .modal-content{
   background:#111;
   padding:20px;
@@ -144,13 +179,16 @@ iframe{
 
 <!-- الشريط العلوي -->
 <div class="top-bar">
-  <div class="balance"><span id="balance">0.00</span> ﷼</div>
+  <div class="balance">
+    <span id="balance">0.00</span> <span class="sar">﷼</span>
+  </div>
 
   <div class="user-menu">
     <div class="user-name" onclick="toggleMenu()">
       <span id="username">مستخدم</span>
       <span class="arrow">▼</span>
     </div>
+
     <div class="dropdown" id="dropdown">
       <div onclick="goProfile()">معلومات المستخدم</div>
       <div onclick="logout()">تسجيل الخروج</div>
@@ -165,32 +203,175 @@ iframe{
 <div class="modal" id="addModal">
   <div class="modal-content">
     <h3>إضافة فيديو</h3><br>
-    <input id="yt" placeholder="رابط YouTube" style="width:100%"><br><br>
+    <input id="yt" placeholder="رابط YouTube"><br><br>
     <button onclick="saveVideo()">حفظ الفيديو</button>
   </div>
 </div>
 
-<div class="modal" id="chartModal">
-  <div class="modal-content">
-    <h3>إحصائيات المشاهدة</h3>
-    <canvas id="viewsChart"></canvas><br>
-    <button onclick="closeChart()">إغلاق</button>
-  </div>
-</div>
-
-<!-- ===== Firebase + Logic (كما هو بدون تغيير) ===== -->
 <script type="module">
-/* كودك كامل بدون أي تعديل */
-</script>
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import {
+  getFirestore, collection, getDocs, addDoc,
+  doc, getDoc, setDoc, updateDoc, deleteDoc,
+  increment, onSnapshot
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-<!-- ===== Service Worker ===== -->
-<script>
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js");
+const app = initializeApp({
+  apiKey: "AIzaSyB4tTVOD8P95EUzmOFNkco9AKI0wP1dLW0",
+  authDomain: "salh01.firebaseapp.com",
+  projectId: "salh01"
+});
+
+const auth = getAuth();
+const db = getFirestore();
+
+let players={}, currentUser, currentPlaying=null;
+
+onAuthStateChanged(auth, user=>{
+  if(!user) return location.href="login.html";
+  currentUser=user;
+
+  document.getElementById("username").innerText =
+    user.displayName || user.email.split("@")[0];
+
+  /* ===== ربط الرصيد لحظيًا ===== */
+  onSnapshot(doc(db,"users",user.uid), snap=>{
+    if(snap.exists()){
+      document.getElementById("balance").innerText =
+        (snap.data().balance || 0).toFixed(2);
+    }
+  });
+
+  loadVideos();
+});
+
+function waitForYT(cb){
+  if(window.YT && YT.Player) cb();
+  else setTimeout(()=>waitForYT(cb),100);
+}
+
+function createPlayer(id,yt){
+  players[id].player=new YT.Player(`player-${id}`,{
+    videoId:yt,
+    playerVars:{controls:0,rel:0,playsinline:1},
+    events:{onStateChange:e=>handleState(e,id)}
   });
 }
-</script>
 
+async function loadVideos(){
+  const snap=await getDocs(collection(db,"videos"));
+  const c=document.getElementById("videos");
+  c.innerHTML="";
+
+  snap.forEach(d=>{
+    const v=d.data();
+    const div=document.createElement("div");
+    div.className="video";
+    div.innerHTML=`
+      <button class="delete-btn"
+        onclick="event.stopPropagation(); deleteVideo('${d.id}')">حذف</button>
+      <div id="player-${d.id}"></div>
+      <div class="yt-end-cover"></div>
+      <div class="reward-overlay" id="reward-${d.id}"
+        onclick="replay('${d.id}')">
+        <span>🎉</span>
+        <div>تم الحصول على 0.5 ريال</div>
+      </div>
+      <div class="tap-layer" onclick="togglePlay('${d.id}')"></div>
+    `;
+    c.appendChild(div);
+
+    players[d.id]={youtubeId:v.youtubeId};
+    waitForYT(()=>createPlayer(d.id,v.youtubeId));
+  });
+
+  observeVideos();
+}
+
+function togglePlay(id){
+  const p=players[id].player;
+  p.getPlayerState()===1?p.pauseVideo():p.playVideo();
+}
+
+function replay(id){
+  document.getElementById(`reward-${id}`).style.display="none";
+  players[id].player.seekTo(0);
+  players[id].player.playVideo();
+}
+
+async function handleState(e,id){
+  if(e.data===1){
+    if(currentPlaying && currentPlaying!==id)
+      players[currentPlaying].player.pauseVideo();
+    currentPlaying=id;
+  }
+
+  if(e.data===0){
+    const ref=doc(db,"interactions",`${currentUser.uid}_${id}`);
+    const snap=await getDoc(ref);
+
+    if(!snap.exists()){
+      await setDoc(ref,{watched:true});
+      await updateDoc(doc(db,"users",currentUser.uid),
+        {balance:increment(0.5)});
+    }
+
+    document.getElementById(`reward-${id}`).style.display="flex";
+  }
+}
+
+function observeVideos(){
+  const obs=new IntersectionObserver(entries=>{
+    entries.forEach(e=>{
+      if(e.isIntersecting){
+        const id=e.target.querySelector("[id^='player-']")
+          .id.replace("player-","");
+        if(currentPlaying!==id)
+          players[id].player.playVideo();
+      }
+    });
+  },{threshold:0.7});
+
+  document.querySelectorAll(".video").forEach(v=>obs.observe(v));
+}
+
+window.deleteVideo=async(id)=>{
+  if(!confirm("حذف الفيديو؟")) return;
+  await deleteDoc(doc(db,"videos",id));
+  document.getElementById(`player-${id}`).closest(".video").remove();
+  delete players[id];
+};
+
+window.openAdd=()=>addModal.style.display="flex";
+
+window.saveVideo=async()=>{
+  const url=yt.value.trim();
+  let id="";
+  if(url.includes("watch?v=")) id=url.split("watch?v=")[1].split("&")[0];
+  else if(url.includes("youtu.be/")) id=url.split("youtu.be/")[1];
+  if(!id) return alert("رابط غير صحيح");
+  await addDoc(collection(db,"videos"),{youtubeId:id,createdAt:Date.now()});
+  location.reload();
+};
+
+/* ===== القائمة ===== */
+window.toggleMenu=()=>{
+  dropdown.style.display =
+    dropdown.style.display==="block"?"none":"block";
+};
+
+window.logout=async()=>{
+  await signOut(auth);
+  location.href="login.html";
+};
+
+window.goProfile=()=>alert("سيتم إنشاؤها لاحقًا");
+
+document.addEventListener("click",e=>{
+  if(!e.target.closest(".user-menu"))
+    dropdown.style.display="none";
+});
+</script>
 </body>
 </html>
