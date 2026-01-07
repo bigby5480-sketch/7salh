@@ -3,7 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <title>الرئيسية</title>
+
 <script src="https://www.youtube.com/iframe_api"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
 body{
@@ -33,30 +35,13 @@ body{
 }
 
 .balance{
-  font-size:16px;
-  font-weight:bold;
   color:#3f8efc;
+  font-weight:bold;
 }
 
-.balance .sar{
-  margin-right:4px;
-}
-
-.user-menu{
-  position:relative;
-}
-
-.user-name{
-  cursor:pointer;
-  display:flex;
-  align-items:center;
-  gap:6px;
-}
-
-.arrow{
-  font-size:12px;
-  opacity:.7;
-}
+.user-menu{ position:relative; }
+.user-name{ cursor:pointer; display:flex; gap:6px; align-items:center; }
+.arrow{ font-size:12px; opacity:.7; }
 
 .dropdown{
   position:absolute;
@@ -64,20 +49,15 @@ body{
   left:0;
   background:#1a1a1a;
   border-radius:8px;
-  overflow:hidden;
   display:none;
   min-width:160px;
-  box-shadow:0 5px 20px rgba(0,0,0,.5);
 }
 
 .dropdown div{
   padding:10px;
   cursor:pointer;
 }
-
-.dropdown div:hover{
-  background:#333;
-}
+.dropdown div:hover{ background:#333; }
 
 /* ===== الفيديوهات ===== */
 #videos{ margin-top:55px; }
@@ -92,6 +72,8 @@ iframe{
   width:100%;
   height:100%;
   pointer-events:none;
+  object-fit:contain;
+  background:black;
 }
 
 .tap-layer{
@@ -100,58 +82,39 @@ iframe{
   z-index:5;
 }
 
-.add-btn{
-  position:fixed;
-  bottom:20px;
-  right:20px;
-  width:55px;
-  height:55px;
-  border-radius:50%;
-  background:#3f8efc;
-  color:white;
-  font-size:30px;
+.delete-btn,.stats-btn{
+  position:absolute;
+  top:15px;
+  z-index:9999;
   border:none;
-  z-index:100;
+  padding:6px 10px;
+  border-radius:6px;
   cursor:pointer;
 }
 
 .delete-btn{
-  position:absolute;
-  top:15px;
   left:15px;
-  z-index:9999;
   background:red;
   color:white;
-  border:none;
-  padding:8px 12px;
-  border-radius:6px;
-  cursor:pointer;
+}
+
+.stats-btn{
+  right:15px;
+  background:#222;
+  color:white;
+  font-size:16px;
 }
 
 .reward-overlay{
   position:absolute;
   inset:0;
-  background:rgba(0,0,0,0.85);
-  z-index:30;
+  background:rgba(0,0,0,.85);
   display:none;
+  z-index:30;
   justify-content:center;
   align-items:center;
   flex-direction:column;
   cursor:pointer;
-}
-
-.reward-overlay span{
-  font-size:36px;
-}
-
-.yt-end-cover{
-  position:absolute;
-  bottom:0;
-  left:0;
-  width:100%;
-  height:40%;
-  background:black;
-  z-index:20;
 }
 
 /* ===== المودال ===== */
@@ -180,7 +143,7 @@ iframe{
 <!-- الشريط العلوي -->
 <div class="top-bar">
   <div class="balance">
-    <span id="balance">0.00</span> <span class="sar">﷼</span>
+    <span id="balance">0.00</span> ﷼
   </div>
 
   <div class="user-menu">
@@ -188,7 +151,6 @@ iframe{
       <span id="username">مستخدم</span>
       <span class="arrow">▼</span>
     </div>
-
     <div class="dropdown" id="dropdown">
       <div onclick="goProfile()">معلومات المستخدم</div>
       <div onclick="logout()">تسجيل الخروج</div>
@@ -198,13 +160,12 @@ iframe{
 
 <div id="videos"></div>
 
-<button class="add-btn" onclick="openAdd()">＋</button>
-
-<div class="modal" id="addModal">
+<!-- مودال الإحصائيات -->
+<div class="modal" id="chartModal">
   <div class="modal-content">
-    <h3>إضافة فيديو</h3><br>
-    <input id="yt" placeholder="رابط YouTube"><br><br>
-    <button onclick="saveVideo()">حفظ الفيديو</button>
+    <h3>إحصائيات المشاهدة</h3>
+    <canvas id="viewsChart"></canvas><br>
+    <button onclick="closeChart()">إغلاق</button>
   </div>
 </div>
 
@@ -218,36 +179,33 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const app = initializeApp({
-  apiKey: "AIzaSyB4tTVOD8P95EUzmOFNkco9AKI0wP1dLW0",
-  authDomain: "salh01.firebaseapp.com",
-  projectId: "salh01"
+  apiKey:"AIzaSyB4tTVOD8P95EUzmOFNkco9AKI0wP1dLW0",
+  authDomain:"salh01.firebaseapp.com",
+  projectId:"salh01"
 });
 
-const auth = getAuth();
-const db = getFirestore();
+const auth=getAuth();
+const db=getFirestore();
 
 let players={}, currentUser, currentPlaying=null;
+let chart;
 
-onAuthStateChanged(auth, user=>{
+onAuthStateChanged(auth,user=>{
   if(!user) return location.href="login.html";
   currentUser=user;
 
-  document.getElementById("username").innerText =
-    user.displayName || user.email.split("@")[0];
+  username.innerText=user.displayName||user.email.split("@")[0];
 
-  /* ===== ربط الرصيد لحظيًا ===== */
-  onSnapshot(doc(db,"users",user.uid), snap=>{
-    if(snap.exists()){
-      document.getElementById("balance").innerText =
-        (snap.data().balance || 0).toFixed(2);
-    }
+  onSnapshot(doc(db,"users",user.uid),snap=>{
+    if(snap.exists())
+      balance.innerText=(snap.data().balance||0).toFixed(2);
   });
 
   loadVideos();
 });
 
 function waitForYT(cb){
-  if(window.YT && YT.Player) cb();
+  if(window.YT&&YT.Player) cb();
   else setTimeout(()=>waitForYT(cb),100);
 }
 
@@ -261,8 +219,7 @@ function createPlayer(id,yt){
 
 async function loadVideos(){
   const snap=await getDocs(collection(db,"videos"));
-  const c=document.getElementById("videos");
-  c.innerHTML="";
+  videos.innerHTML="";
 
   snap.forEach(d=>{
     const v=d.data();
@@ -270,17 +227,21 @@ async function loadVideos(){
     div.className="video";
     div.innerHTML=`
       <button class="delete-btn"
-        onclick="event.stopPropagation(); deleteVideo('${d.id}')">حذف</button>
+        onclick="event.stopPropagation();deleteVideo('${d.id}')">حذف</button>
+      <button class="stats-btn"
+        onclick="event.stopPropagation();showStats('${d.id}')">📊</button>
+
       <div id="player-${d.id}"></div>
-      <div class="yt-end-cover"></div>
+
       <div class="reward-overlay" id="reward-${d.id}"
         onclick="replay('${d.id}')">
         <span>🎉</span>
         <div>تم الحصول على 0.5 ريال</div>
       </div>
+
       <div class="tap-layer" onclick="togglePlay('${d.id}')"></div>
     `;
-    c.appendChild(div);
+    videos.appendChild(div);
 
     players[d.id]={youtubeId:v.youtubeId};
     waitForYT(()=>createPlayer(d.id,v.youtubeId));
@@ -294,30 +255,44 @@ function togglePlay(id){
   p.getPlayerState()===1?p.pauseVideo():p.playVideo();
 }
 
+async function showReward(id){
+  const overlay=document.getElementById(`reward-${id}`);
+  if(overlay.style.display==="flex") return;
+
+  overlay.style.display="flex";
+
+  const ref=doc(db,"interactions",`${currentUser.uid}_${id}`);
+  const snap=await getDoc(ref);
+
+  if(!snap.exists()){
+    await setDoc(ref,{watched:true});
+    await updateDoc(doc(db,"users",currentUser.uid),
+      {balance:increment(0.5)});
+  }
+}
+
 function replay(id){
-  document.getElementById(`reward-${id}`).style.display="none";
+  reward=document.getElementById(`reward-${id}`);
+  reward.style.display="none";
   players[id].player.seekTo(0);
   players[id].player.playVideo();
 }
 
-async function handleState(e,id){
+function handleState(e,id){
   if(e.data===1){
     if(currentPlaying && currentPlaying!==id)
       players[currentPlaying].player.pauseVideo();
     currentPlaying=id;
-  }
 
-  if(e.data===0){
-    const ref=doc(db,"interactions",`${currentUser.uid}_${id}`);
-    const snap=await getDoc(ref);
-
-    if(!snap.exists()){
-      await setDoc(ref,{watched:true});
-      await updateDoc(doc(db,"users",currentUser.uid),
-        {balance:increment(0.5)});
-    }
-
-    document.getElementById(`reward-${id}`).style.display="flex";
+    const p=players[id].player;
+    const i=setInterval(async()=>{
+      const d=p.getDuration(), c=p.getCurrentTime();
+      if(d && c>=d-0.4){
+        clearInterval(i);
+        p.pauseVideo();
+        showReward(id);
+      }
+    },300);
   }
 }
 
@@ -336,37 +311,41 @@ function observeVideos(){
   document.querySelectorAll(".video").forEach(v=>obs.observe(v));
 }
 
-window.deleteVideo=async(id)=>{
+window.deleteVideo=async id=>{
   if(!confirm("حذف الفيديو؟")) return;
   await deleteDoc(doc(db,"videos",id));
   document.getElementById(`player-${id}`).closest(".video").remove();
-  delete players[id];
 };
 
-window.openAdd=()=>addModal.style.display="flex";
+window.showStats=async videoId=>{
+  chartModal.style.display="flex";
+  const snap=await getDocs(collection(db,"interactions"));
+  let views=0;
+  snap.forEach(d=>{
+    if(d.id.endsWith("_"+videoId)) views++;
+  });
 
-window.saveVideo=async()=>{
-  const url=yt.value.trim();
-  let id="";
-  if(url.includes("watch?v=")) id=url.split("watch?v=")[1].split("&")[0];
-  else if(url.includes("youtu.be/")) id=url.split("youtu.be/")[1];
-  if(!id) return alert("رابط غير صحيح");
-  await addDoc(collection(db,"videos"),{youtubeId:id,createdAt:Date.now()});
-  location.reload();
+  if(chart) chart.destroy();
+  chart=new Chart(viewsChart,{
+    type:"bar",
+    data:{
+      labels:["المشاهدات"],
+      datasets:[{data:[views],label:"عدد المشاهدات"}]
+    }
+  });
 };
 
-/* ===== القائمة ===== */
-window.toggleMenu=()=>{
-  dropdown.style.display =
-    dropdown.style.display==="block"?"none":"block";
-};
+window.closeChart=()=>chartModal.style.display="none";
+
+window.toggleMenu=()=>dropdown.style.display=
+  dropdown.style.display==="block"?"none":"block";
 
 window.logout=async()=>{
   await signOut(auth);
   location.href="login.html";
 };
 
-window.goProfile=()=>alert("سيتم إنشاؤها لاحقًا");
+window.goProfile=()=>alert("ستضاف لاحقًا");
 
 document.addEventListener("click",e=>{
   if(!e.target.closest(".user-menu"))
