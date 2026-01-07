@@ -91,7 +91,7 @@ body{
 iframe{
   width:100%;
   height:100%;
-  pointer-events:none;
+  pointer-events:auto; /* ✅ تعديل */
 }
 
 .tap-layer{
@@ -235,7 +235,6 @@ onAuthStateChanged(auth, user=>{
   document.getElementById("username").innerText =
     user.displayName || user.email.split("@")[0];
 
-  /* ===== ربط الرصيد لحظيًا ===== */
   onSnapshot(doc(db,"users",user.uid), snap=>{
     if(snap.exists()){
       document.getElementById("balance").innerText =
@@ -254,7 +253,11 @@ function waitForYT(cb){
 function createPlayer(id,yt){
   players[id].player=new YT.Player(`player-${id}`,{
     videoId:yt,
-    playerVars:{controls:0,rel:0,playsinline:1},
+    playerVars:{
+      controls:1, /* ✅ تعديل */
+      rel:0,
+      playsinline:1
+    },
     events:{onStateChange:e=>handleState(e,id)}
   });
 }
@@ -355,7 +358,6 @@ window.saveVideo=async()=>{
   location.reload();
 };
 
-/* ===== القائمة ===== */
 window.toggleMenu=()=>{
   dropdown.style.display =
     dropdown.style.display==="block"?"none":"block";
