@@ -16,6 +16,72 @@ body{
   scroll-snap-type:y mandatory;
 }
 
+/* ===== الشريط العلوي ===== */
+.top-bar{
+  position:fixed;
+  top:0;
+  right:0;
+  left:0;
+  height:55px;
+  background:#111;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:0 15px;
+  z-index:1000;
+  border-bottom:1px solid #222;
+}
+
+.balance{
+  font-size:16px;
+  font-weight:bold;
+  color:#3f8efc;
+}
+
+.balance .sar{
+  margin-right:4px;
+}
+
+.user-menu{
+  position:relative;
+}
+
+.user-name{
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+
+.arrow{
+  font-size:12px;
+  opacity:.7;
+}
+
+.dropdown{
+  position:absolute;
+  top:40px;
+  left:0;
+  background:#1a1a1a;
+  border-radius:8px;
+  overflow:hidden;
+  display:none;
+  min-width:160px;
+  box-shadow:0 5px 20px rgba(0,0,0,.5);
+}
+
+.dropdown div{
+  padding:10px;
+  cursor:pointer;
+}
+
+.dropdown div:hover{
+  background:#333;
+}
+
+/* ===== الفيديوهات ===== */
+#videos{ margin-top:55px; }
+
 .video{
   height:100vh;
   scroll-snap-align:start;
@@ -53,7 +119,7 @@ iframe{
   position:absolute;
   top:15px;
   left:15px;
-  z-index:200;
+  z-index:9999;
   background:red;
   color:white;
   border:none;
@@ -71,13 +137,11 @@ iframe{
   justify-content:center;
   align-items:center;
   flex-direction:column;
-  text-align:center;
   cursor:pointer;
 }
 
 .reward-overlay span{
   font-size:36px;
-  margin-bottom:10px;
 }
 
 .yt-end-cover{
@@ -90,6 +154,7 @@ iframe{
   z-index:20;
 }
 
+/* ===== المودال ===== */
 .modal{
   display:none;
   position:fixed;
@@ -112,6 +177,25 @@ iframe{
 
 <body>
 
+<!-- الشريط العلوي -->
+<div class="top-bar">
+  <div class="balance">
+    <span id="balance">0.00</span> <span class="sar">﷼</span>
+  </div>
+
+  <div class="user-menu">
+    <div class="user-name" onclick="toggleMenu()">
+      <span id="username">مستخدم</span>
+      <span class="arrow">▼</span>
+    </div>
+
+    <div class="dropdown" id="dropdown">
+      <div onclick="goProfile()">معلومات المستخدم</div>
+      <div onclick="logout()">تسجيل الخروج</div>
+    </div>
+  </div>
+</div>
+
 <div id="videos"></div>
 
 <button class="add-btn" onclick="openAdd()">＋</button>
@@ -126,10 +210,11 @@ iframe{
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import {
   getFirestore, collection, getDocs, addDoc,
-  doc, getDoc, setDoc, updateDoc, deleteDoc, increment
+  doc, getDoc, setDoc, updateDoc, deleteDoc,
+  increment, onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const app = initializeApp({
@@ -141,13 +226,23 @@ const app = initializeApp({
 const auth = getAuth();
 const db = getFirestore();
 
-let players = {};
-let currentUser;
-let currentPlaying = null;
+let players={}, currentUser, currentPlaying=null;
 
-onAuthStateChanged(auth,user=>{
-  if(!user) location.href="login.html";
+onAuthStateChanged(auth, user=>{
+  if(!user) return location.href="login.html";
   currentUser=user;
+
+  document.getElementById("username").innerText =
+    user.displayName || user.email.split("@")[0];
+
+  /* ===== ربط الرصيد لحظيًا ===== */
+  onSnapshot(doc(db,"users",user.uid), snap=>{
+    if(snap.exists()){
+      document.getElementById("balance").innerText =
+        (snap.data().balance || 0).toFixed(2);
+    }
+  });
+
   loadVideos();
 });
 
@@ -159,7 +254,7 @@ function waitForYT(cb){
 function createPlayer(id,yt){
   players[id].player=new YT.Player(`player-${id}`,{
     videoId:yt,
-    playerVars:{controls:0,rel:0,modestbranding:1,playsinline:1},
+    playerVars:{controls:0,rel:0,playsinline:1},
     events:{onStateChange:e=>handleState(e,id)}
   });
 }
@@ -173,15 +268,15 @@ async function loadVideos(){
     const v=d.data();
     const div=document.createElement("div");
     div.className="video";
-
     div.innerHTML=`
-      <button class="delete-btn" onclick="deleteVideo('${d.id}')">حذف</button>
+      <button class="delete-btn"
+        onclick="event.stopPropagation(); deleteVideo('${d.id}')">حذف</button>
       <div id="player-${d.id}"></div>
       <div class="yt-end-cover"></div>
-      <div class="reward-overlay" id="reward-${d.id}" onclick="replay('${d.id}')">
-        <span>🎉👏</span>
+      <div class="reward-overlay" id="reward-${d.id}"
+        onclick="replay('${d.id}')">
+        <span>🎉</span>
         <div>تم الحصول على 0.5 ريال</div>
-        <small>شاهد المزيد لزيادة أرباحك</small>
       </div>
       <div class="tap-layer" onclick="togglePlay('${d.id}')"></div>
     `;
@@ -218,7 +313,8 @@ async function handleState(e,id){
 
     if(!snap.exists()){
       await setDoc(ref,{watched:true});
-      await updateDoc(doc(db,"users",currentUser.uid),{balance:increment(0.5)});
+      await updateDoc(doc(db,"users",currentUser.uid),
+        {balance:increment(0.5)});
     }
 
     document.getElementById(`reward-${id}`).style.display="flex";
@@ -229,8 +325,10 @@ function observeVideos(){
   const obs=new IntersectionObserver(entries=>{
     entries.forEach(e=>{
       if(e.isIntersecting){
-        const id=e.target.querySelector("[id^='player-']").id.replace("player-","");
-        players[id].player.playVideo();
+        const id=e.target.querySelector("[id^='player-']")
+          .id.replace("player-","");
+        if(currentPlaying!==id)
+          players[id].player.playVideo();
       }
     });
   },{threshold:0.7});
@@ -239,22 +337,41 @@ function observeVideos(){
 }
 
 window.deleteVideo=async(id)=>{
-  if(!confirm("هل تريد حذف الفيديو؟")) return;
+  if(!confirm("حذف الفيديو؟")) return;
   await deleteDoc(doc(db,"videos",id));
-  location.reload();
+  document.getElementById(`player-${id}`).closest(".video").remove();
+  delete players[id];
 };
 
-window.openAdd=()=>document.getElementById("addModal").style.display="flex";
+window.openAdd=()=>addModal.style.display="flex";
 
 window.saveVideo=async()=>{
-  const url=document.getElementById("yt").value.trim();
+  const url=yt.value.trim();
   let id="";
   if(url.includes("watch?v=")) id=url.split("watch?v=")[1].split("&")[0];
-  else if(url.includes("youtu.be/")) id=url.split("youtu.be/")[1].split("?")[0];
+  else if(url.includes("youtu.be/")) id=url.split("youtu.be/")[1];
   if(!id) return alert("رابط غير صحيح");
   await addDoc(collection(db,"videos"),{youtubeId:id,createdAt:Date.now()});
   location.reload();
 };
+
+/* ===== القائمة ===== */
+window.toggleMenu=()=>{
+  dropdown.style.display =
+    dropdown.style.display==="block"?"none":"block";
+};
+
+window.logout=async()=>{
+  await signOut(auth);
+  location.href="login.html";
+};
+
+window.goProfile=()=>alert("سيتم إنشاؤها لاحقًا");
+
+document.addEventListener("click",e=>{
+  if(!e.target.closest(".user-menu"))
+    dropdown.style.display="none";
+});
 </script>
 </body>
 </html>
