@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <title>الرئيسية</title>
 
+<script src="https://www.youtube.com/iframe_api"></script>
+
 <style>
 body{
   margin:0;
@@ -38,10 +40,7 @@ body{
 }
 
 .user-menu{ position:relative; }
-
-.user-name{
-  cursor:pointer;
-}
+.user-name{ cursor:pointer; }
 
 .dropdown{
   position:absolute;
@@ -68,11 +67,9 @@ body{
   scroll-snap-align:start;
 }
 
-video{
+.player{
   width:100%;
   height:100%;
-  object-fit:cover;
-  pointer-events:none; /* منع التقديم والتأخير */
 }
 
 /* ===== المكافأة ===== */
@@ -146,8 +143,8 @@ video{
 
 <div class="modal" id="addModal">
   <div class="modal-content">
-    <h3>إضافة فيديو</h3><br>
-    <input id="videoUrl" placeholder="رابط MP4 مباشر"><br><br>
+    <h3>إضافة فيديو يوتيوب</h3><br>
+    <input id="ytUrl" placeholder="رابط يوتيوب"><br><br>
     <button onclick="saveVideo()">حفظ</button>
   </div>
 </div>
@@ -171,8 +168,8 @@ const auth = getAuth();
 const db = getFirestore();
 
 let currentUser;
+let players = {};
 
-/* ===== دخول المستخدم ===== */
 onAuthStateChanged(auth, user=>{
   if(!user) location.href="login.html";
   currentUser = user;
@@ -192,51 +189,66 @@ async function loadVideos(){
 
   snap.forEach(d=>{
     const data = d.data();
-
     const div = document.createElement("div");
     div.className="video";
 
     div.innerHTML=`
-      <video muted playsinline>
-        <source src="${data.videoUrl}" type="video/mp4">
-      </video>
+      <div id="player-${d.id}" class="player"></div>
       <div class="reward">🎉 حصلت على 0.5 ريال</div>
     `;
 
-    const video = div.querySelector("video");
-    const reward = div.querySelector(".reward");
-    let finished = false;
-
-    div.addEventListener("click", ()=>{
-      if(video.paused){
-        video.play().catch(()=>{});
-      }
-    });
-
-    video.addEventListener("ended", async ()=>{
-      reward.style.display="flex";
-
-      const ref = doc(db,"interactions",
-        currentUser.uid + "_" + d.id);
-
-      const seen = await getDoc(ref);
-      if(!seen.exists()){
-        await setDoc(ref,{done:true});
-        await updateDoc(
-          doc(db,"users",currentUser.uid),
-          {balance: increment(0.5)}
-        );
-      }
-    });
-
-    reward.addEventListener("click", e=>{
-      e.stopPropagation();
-      reward.style.display="none";
-      video.currentTime = 0;
-      video.play();
-    });
-
     videos.appendChild(div);
+
+    let startedAt = null;
+    let cheated = false;
+
+    players[d.id] = new YT.Player(`player-${d.id}`,{
+      videoId: data.youtubeId,
+      playerVars:{
+        controls:1,
+        rel:0,
+        playsinline:1
+      },
+      events:{
+        onStateChange: async e=>{
+          if(e.data === YT.PlayerState.PLAYING){
+            if(startedAt === null){
+              startedAt = players[d.id].getCurrentTime();
+            }else{
+              const diff = players[d.id].getCurrentTime() - startedAt;
+              if(Math.abs(diff) > 1) cheated = true;
+            }
+          }
+
+          if(e.data === YT.PlayerState.ENDED){
+            const reward = div.querySelector(".reward");
+            reward.style.display="flex";
+
+            if(!cheated){
+              const ref = doc(db,"interactions",
+                currentUser.uid + "_" + d.id);
+
+              const seen = await getDoc(ref);
+              if(!seen.exists()){
+                await setDoc(ref,{done:true});
+                await updateDoc(
+                  doc(db,"users",currentUser.uid),
+                  {balance: increment(0.5)}
+                );
+              }
+            }
+          }
+        }
+      }
+    });
+
+    div.querySelector(".reward").onclick = ()=>{
+      div.querySelector(".reward").style.display="none";
+      players[d.id].seekTo(0);
+      players[d.id].playVideo();
+      cheated = false;
+      startedAt = null;
+    };
   });
 }
 
@@ -244,17 +256,23 @@ async function loadVideos(){
 window.openAdd = ()=> addModal.style.display="flex";
 
 window.saveVideo = async()=>{
-  const url = videoUrl.value.trim();
-  if(!url.endsWith(".mp4"))
-    return alert("الرابط يجب أن يكون mp4 مباشر");
+  const url = ytUrl.value.trim();
+  let id = "";
+
+  if(url.includes("watch?v="))
+    id = url.split("watch?v=")[1].split("&")[0];
+  else if(url.includes("youtu.be/"))
+    id = url.split("youtu.be/")[1];
+
+  if(!id) return alert("رابط غير صحيح");
 
   await addDoc(collection(db,"videos"),{
-    videoUrl:url,
+    youtubeId:id,
     createdAt:Date.now()
   });
 
   addModal.style.display="none";
-  videoUrl.value="";
+  ytUrl.value="";
   loadVideos();
 };
 
