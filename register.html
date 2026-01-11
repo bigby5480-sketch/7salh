@@ -1,74 +1,144 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="UTF-8">
-<title>إنشاء حساب</title>
+  <meta charset="UTF-8">
+  <title>إنشاء حساب</title>
 
-<style>
-body {
-  font-family: Arial;
-  background: #f5f6fa;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-}
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600&display=swap" rel="stylesheet">
 
-.form {
-  background: white;
-  padding: 25px;
-  border-radius: 12px;
-  width: 320px;
-  box-shadow: 0 10px 30px rgba(0,0,0,.1);
-}
+  <style>
+    * { box-sizing: border-box; font-family: 'Cairo', sans-serif; }
 
-input, select, button {
-  width: 100%;
-  padding: 10px;
-  margin-top: 10px;
-}
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #f0f4f8, #d9e2ec);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
 
-button {
-  background: #3f8efc;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-}
-</style>
+    .card {
+      background: #fff;
+      width: 380px;
+      padding: 30px;
+      border-radius: 16px;
+      box-shadow: 0 20px 40px rgba(0,0,0,.08);
+    }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #334e68;
+    }
+
+    .group { margin-bottom: 14px; }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      color: #627d98;
+      font-size: 14px;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 11px;
+      border-radius: 10px;
+      border: 1px solid #cbd2d9;
+      outline: none;
+      font-size: 14px;
+      background: #fff;
+    }
+
+    select {
+      appearance: none;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 12px;
+      background: #3f8efc;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+
+    .link {
+      margin-top: 12px;
+      text-align: center;
+      font-size: 14px;
+    }
+
+    .link a {
+      color: #3f8efc;
+      text-decoration: none;
+      font-weight: 600;
+    }
+  </style>
 </head>
 
 <body>
 
-<div class="form">
-  <h3 style="text-align:center">إنشاء حساب</h3>
+<div class="card">
+  <h2>إنشاء حساب</h2>
 
-  <input id="name" placeholder="الاسم الكامل">
-  <input id="email" type="email" placeholder="البريد الإلكتروني">
-  <input id="password" type="password" placeholder="كلمة المرور">
-  <input id="confirm" type="password" placeholder="إعادة كلمة المرور">
+  <div class="group">
+    <label>الاسم الكامل</label>
+    <input id="name">
+  </div>
 
-  <select id="age">
-    <option value="">الفئة العمرية</option>
-    <option>15 - 21</option>
-    <option>22 - 28</option>
-    <option>29 - 35</option>
-    <option>36 - 40</option>
-    <option>+40</option>
-  </select>
+  <div class="group">
+    <label>البريد الإلكتروني</label>
+    <input id="email" type="email">
+  </div>
 
-  <!-- ✅ المنطقة موحدة -->
-  <select id="region">
-    <option value="">اختر المنطقة</option>
-    <option value="الشرقية">الشرقية</option>
-    <option value="الوسطى">الوسطى</option>
-    <option value="الغربية">الغربية</option>
-  </select>
+  <div class="group">
+    <label>كلمة المرور</label>
+    <input id="password" type="password">
+  </div>
 
-  <!-- IBAN -->
-  <input id="iban" placeholder="SAxxxxxxxxxxxxxxx" maxlength="17">
+  <div class="group">
+    <label>إعادة كلمة المرور</label>
+    <input id="confirm" type="password">
+  </div>
+
+  <div class="group">
+    <label>الفئة العمرية</label>
+    <select id="age">
+      <option value="">اختر</option>
+      <option>15 - 21</option>
+      <option>22 - 28</option>
+      <option>29 - 35</option>
+      <option>36 - 40</option>
+      <option>+40</option>
+    </select>
+  </div>
+
+  <div class="group">
+    <label>المنطقة</label>
+    <select id="region">
+      <option value="">اختر</option>
+      <option value="الشرقية">الشرقية</option>
+      <option value="الوسطى">الوسطى</option>
+      <option value="الغربية">الغربية</option>
+    </select>
+  </div>
+
+  <div class="group">
+    <label>الآيبان</label>
+    <input id="iban" placeholder="SAxxxxxxxxxxxxxxx" maxlength="17">
+  </div>
 
   <button onclick="register()">إنشاء الحساب</button>
+
+  <div class="link">
+    لديك حساب؟
+    <a href="login.html">تسجيل الدخول</a>
+  </div>
 </div>
 
 <script type="module">
@@ -86,13 +156,13 @@ const auth = getAuth();
 const db = getFirestore();
 
 window.register = async () => {
-  const name = nameInput.value.trim();
-  const email = emailInput.value.trim();
-  const pass = password.value;
-  const confirmPass = confirm.value;
-  const age = ageSelect.value;
-  const region = regionSelect.value;
-  let iban = ibanInput.value.trim();
+  const name = document.getElementById("name").value.trim();
+  const email = document.getElementById("email").value.trim();
+  const pass = document.getElementById("password").value;
+  const confirmPass = document.getElementById("confirm").value;
+  const age = document.getElementById("age").value;
+  const region = document.getElementById("region").value;
+  const iban = document.getElementById("iban").value.trim();
 
   if (!name || !email || !pass || !confirmPass || !age || !region || !iban) {
     alert("جميع الحقول مطلوبة");
@@ -116,7 +186,7 @@ window.register = async () => {
       name,
       email,
       age,
-      region,          // ✅ الشرقية / الوسطى / الغربية فقط
+      region,
       iban,
       balance: 0,
       role: "user",
@@ -128,14 +198,6 @@ window.register = async () => {
     alert(e.message);
   }
 };
-
-const nameInput = document.getElementById("name");
-const emailInput = document.getElementById("email");
-const password = document.getElementById("password");
-const confirm = document.getElementById("confirm");
-const ageSelect = document.getElementById("age");
-const regionSelect = document.getElementById("region");
-const ibanInput = document.getElementById("iban");
 </script>
 
 </body>
