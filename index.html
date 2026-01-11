@@ -10,6 +10,9 @@ body{
   background:black;
   color:white;
   font-family:Arial;
+  height:100vh;
+  overflow-y:scroll;
+  scroll-snap-type:y mandatory;
 }
 
 /* ===== الشريط العلوي ===== */
@@ -29,43 +32,60 @@ body{
 }
 
 .balance{
-  color:#3f8efc;
+  font-size:16px;
   font-weight:bold;
+  color:#3f8efc;
 }
 
-.user{
+.user-menu{ position:relative; }
+
+.user-name{
   cursor:pointer;
 }
 
-.logout{
+.dropdown{
   position:absolute;
-  top:55px;
-  left:15px;
+  top:40px;
+  left:0;
   background:#1a1a1a;
-  padding:10px;
-  border-radius:6px;
+  border-radius:8px;
   display:none;
+  min-width:160px;
 }
+
+.dropdown div{
+  padding:10px;
+  cursor:pointer;
+}
+.dropdown div:hover{ background:#333; }
 
 /* ===== الفيديو ===== */
-#videos{
-  margin-top:55px;
-}
+#videos{ margin-top:55px; }
 
 .video{
+  height:100vh;
   position:relative;
-  height:300px;
+  scroll-snap-align:start;
 }
 
+video{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  pointer-events:none; /* منع التقديم والتأخير */
+}
+
+/* ===== المكافأة ===== */
 .reward{
-  position:fixed;
+  position:absolute;
   inset:0;
-  background:rgba(0,0,0,.85);
+  background:rgba(0,0,0,0.75);
   display:none;
+  z-index:5;
   justify-content:center;
   align-items:center;
-  font-size:24px;
-  z-index:999;
+  font-size:26px;
+  cursor:pointer;
 }
 
 /* ===== زر الإضافة ===== */
@@ -80,11 +100,11 @@ body{
   color:white;
   font-size:30px;
   border:none;
+  z-index:100;
   cursor:pointer;
-  z-index:500;
 }
 
-/* ===== المودال ===== */
+/* ===== نافذة الإضافة ===== */
 .modal{
   position:fixed;
   inset:0;
@@ -92,67 +112,53 @@ body{
   display:none;
   justify-content:center;
   align-items:center;
-  z-index:600;
+  z-index:200;
 }
-.modal-box{
+
+.modal-content{
   background:#111;
   padding:20px;
   border-radius:10px;
   width:90%;
   max-width:350px;
 }
-.modal-box input{
-  width:100%;
-  padding:10px;
-}
-.modal-box button{
-  width:100%;
-  padding:10px;
-  margin-top:10px;
-}
 </style>
 </head>
 
 <body>
 
-<!-- الشريط العلوي -->
 <div class="top-bar">
-  <div class="balance">الرصيد: <span id="balance">0</span> ﷼</div>
-  <div class="user" onclick="toggleLogout()">
-    <span id="username">مستخدم</span> ▼
-    <div class="logout" id="logoutBox" onclick="logout()">تسجيل الخروج</div>
+  <div class="balance">
+    <span id="balance">0.00</span> ﷼
+  </div>
+
+  <div class="user-menu">
+    <div class="user-name" onclick="toggleMenu()">مستخدم ▼</div>
+    <div class="dropdown" id="dropdown">
+      <div onclick="logout()">تسجيل الخروج</div>
+    </div>
   </div>
 </div>
 
 <div id="videos"></div>
 
-<div class="reward" id="reward">🎉 تم احتساب المكافأة</div>
+<button class="add-btn" onclick="openAdd()">＋</button>
 
-<button class="add-btn" onclick="openModal()">＋</button>
-
-<div class="modal" id="modal">
-  <div class="modal-box">
-    <input id="ytLink" placeholder="الصق رابط يوتيوب">
-    <button onclick="addVideo()">حفظ الفيديو</button>
+<div class="modal" id="addModal">
+  <div class="modal-content">
+    <h3>إضافة فيديو</h3><br>
+    <input id="videoUrl" placeholder="رابط MP4 مباشر"><br><br>
+    <button onclick="saveVideo()">حفظ</button>
   </div>
 </div>
 
-<script src="https://www.youtube.com/iframe_api"></script>
-
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import {
-  getAuth,
-  onAuthStateChanged,
-  signOut
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import {
-  getFirestore,
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
-  increment
+  getFirestore, collection, addDoc, getDocs,
+  doc, getDoc, setDoc, updateDoc,
+  increment, onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const app = initializeApp({
@@ -164,102 +170,104 @@ const app = initializeApp({
 const auth = getAuth();
 const db = getFirestore();
 
-let user;
-let index=0;
-let players={}, state={};
+let currentUser;
 
-onAuthStateChanged(auth,u=>{
-  if(!u) location.href="login.html";
-  user=u;
-  username.innerText=u.email.split("@")[0];
+/* ===== دخول المستخدم ===== */
+onAuthStateChanged(auth, user=>{
+  if(!user) location.href="login.html";
+  currentUser = user;
+
+  onSnapshot(doc(db,"users",user.uid), snap=>{
+    if(snap.exists())
+      balance.innerText = (snap.data().balance||0).toFixed(2);
+  });
+
+  loadVideos();
 });
 
-/* ===== UI ===== */
-window.openModal=()=> modal.style.display="flex";
-window.toggleLogout=()=>{
-  logoutBox.style.display =
-    logoutBox.style.display==="block"?"none":"block";
+/* ===== تحميل الفيديوهات ===== */
+async function loadVideos(){
+  videos.innerHTML="";
+  const snap = await getDocs(collection(db,"videos"));
+
+  snap.forEach(d=>{
+    const data = d.data();
+
+    const div = document.createElement("div");
+    div.className="video";
+
+    div.innerHTML=`
+      <video muted playsinline>
+        <source src="${data.videoUrl}" type="video/mp4">
+      </video>
+      <div class="reward">🎉 حصلت على 0.5 ريال</div>
+    `;
+
+    const video = div.querySelector("video");
+    const reward = div.querySelector(".reward");
+    let finished = false;
+
+    div.addEventListener("click", ()=>{
+      if(video.paused){
+        video.play().catch(()=>{});
+      }
+    });
+
+    video.addEventListener("ended", async ()=>{
+      reward.style.display="flex";
+
+      const ref = doc(db,"interactions",
+        currentUser.uid + "_" + d.id);
+
+      const seen = await getDoc(ref);
+      if(!seen.exists()){
+        await setDoc(ref,{done:true});
+        await updateDoc(
+          doc(db,"users",currentUser.uid),
+          {balance: increment(0.5)}
+        );
+      }
+    });
+
+    reward.addEventListener("click", e=>{
+      e.stopPropagation();
+      reward.style.display="none";
+      video.currentTime = 0;
+      video.play();
+    });
+
+    videos.appendChild(div);
+  });
+}
+
+/* ===== الإضافة ===== */
+window.openAdd = ()=> addModal.style.display="flex";
+
+window.saveVideo = async()=>{
+  const url = videoUrl.value.trim();
+  if(!url.endsWith(".mp4"))
+    return alert("الرابط يجب أن يكون mp4 مباشر");
+
+  await addDoc(collection(db,"videos"),{
+    videoUrl:url,
+    createdAt:Date.now()
+  });
+
+  addModal.style.display="none";
+  videoUrl.value="";
+  loadVideos();
 };
-window.logout=async()=>{
+
+/* ===== القائمة ===== */
+window.toggleMenu = ()=>{
+  dropdown.style.display =
+    dropdown.style.display==="block"?"none":"block";
+};
+
+window.logout = async()=>{
   await signOut(auth);
   location.href="login.html";
 };
-
-/* ===== إضافة فيديو ===== */
-window.addVideo = async()=>{
-  const link=ytLink.value.trim();
-  modal.style.display="none";
-  ytLink.value="";
-
-  const id=getId(link);
-  if(!id) return alert("رابط غير صالح");
-
-  const key=id;
-  const ref=doc(db,"watched",`${user.uid}_${key}`);
-  if((await getDoc(ref)).exists())
-    return alert("تم مشاهدة الفيديو سابقًا");
-
-  const pid="p"+(++index);
-  state[pid]={played:false,last:0,key};
-
-  const div=document.createElement("div");
-  div.className="video";
-  div.innerHTML=`<div id="${pid}"></div>`;
-  videos.prepend(div);
-
-  players[pid]=new YT.Player(pid,{
-    videoId:id,
-    playerVars:{playsinline:1,disablekb:1},
-    events:{onStateChange:e=>onState(e,pid)}
-  });
-};
-
-/* ===== التحكم والمكافأة ===== */
-function onState(e,pid){
-  const p=players[pid];
-  const s=state[pid];
-
-  if(e.data===YT.PlayerState.PLAYING){
-    if(!s.played){
-      s.played=true;
-      s.last=p.getCurrentTime();
-      s.timer=setInterval(()=>{
-        const t=p.getCurrentTime();
-        if(t>s.last+1.2) p.seekTo(s.last,true);
-        else s.last=t;
-      },500);
-    }
-  }
-
-  if(e.data===YT.PlayerState.ENDED){
-    clearInterval(s.timer);
-    rewardVideo(s.key);
-  }
-}
-
-async function rewardVideo(key){
-  const ref=doc(db,"watched",`${user.uid}_${key}`);
-  if((await getDoc(ref)).exists()) return;
-
-  await setDoc(ref,{done:true});
-  await updateDoc(doc(db,"users",user.uid),{
-    balance:increment(0.5)
-  });
-
-  reward.style.display="flex";
-}
-
-/* ===== استخراج ID ===== */
-function getId(url){
-  try{
-    const u=new URL(url);
-    if(u.hostname.includes("youtu.be"))
-      return u.pathname.slice(1);
-    return u.searchParams.get("v");
-  }catch{
-    return null;
-  }
-}
 </script>
 
 </body>
