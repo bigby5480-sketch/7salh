@@ -76,7 +76,6 @@ video{
   width:100%;
   height:100%;
   object-fit:cover;
-  pointer-events:none;
   background:black;
 }
 
@@ -144,7 +143,6 @@ video{
 
 <body>
 
-<!-- الشريط العلوي -->
 <div class="top-bar">
   <div class="balance">
     <span id="balance">0.00</span> ﷼
@@ -226,6 +224,7 @@ async function loadVideos(){
         autoplay
         playsinline
         preload="auto"
+        controls
       ></video>
 
       <div class="reward-overlay">
@@ -237,7 +236,6 @@ async function loadVideos(){
     const reward = div.querySelector(".reward-overlay");
     let rewarded = false;
 
-    /* 🔴 الحل النهائي للشاشة السوداء */
     video.addEventListener("loadeddata", ()=>{
       video.play().catch(()=>{});
     });
