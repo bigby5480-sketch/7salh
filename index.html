@@ -2,55 +2,44 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<title>الفيديوهات</title>
+<title>فيديو بمكافأة</title>
 
 <style>
 body {
-  margin: 0;
-  background: #000;
-  color: #fff;
-  font-family: Arial;
+  margin:0;
+  background:#000;
+  color:#fff;
+  font-family:Arial;
 }
-
 header {
-  padding: 10px;
-  background: #111;
-  display: flex;
-  gap: 10px;
+  background:#111;
+  padding:10px;
+  display:flex;
+  gap:10px;
 }
-
 input {
-  flex: 1;
-  padding: 10px;
-  font-size: 16px;
+  flex:1;
+  padding:10px;
 }
-
 button {
-  padding: 10px 15px;
-  font-size: 16px;
-  cursor: pointer;
+  padding:10px;
+  cursor:pointer;
 }
-
-#videos {
-  margin-top: 10px;
+.video {
+  position:relative;
+  width:100%;
+  height:300px;
+  margin-top:10px;
 }
-
-.video-box {
-  width: 100%;
-  height: 300px;
-  margin-bottom: 20px;
-  position: relative;
-}
-
 .reward {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.9);
-  display: none;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-  z-index: 999;
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.9);
+  display:none;
+  justify-content:center;
+  align-items:center;
+  font-size:24px;
+  z-index:999;
 }
 </style>
 </head>
@@ -58,76 +47,141 @@ button {
 <body>
 
 <header>
-  <input id="youtubeLink" placeholder="ضع رابط يوتيوب هنا">
+  <input id="yt" placeholder="رابط يوتيوب">
   <button onclick="addVideo()">إضافة</button>
 </header>
 
 <div id="videos"></div>
 
 <div class="reward" id="reward">
-  🎉 مبروك! حصلت على المكافأة
+  🎉 تم احتساب المكافأة
 </div>
 
 <script src="https://www.youtube.com/iframe_api"></script>
 
-<script>
-let playerCount = 0;
-let players = {};
+<script type="module">
+/* ===== Firebase ===== */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import {
+  getAuth,
+  onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import {
+  getFirestore,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  increment
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-function extractVideoId(url) {
-  try {
-    const u = new URL(url);
-    if (u.hostname.includes('youtu.be')) {
-      return u.pathname.slice(1);
-    }
-    return u.searchParams.get('v');
-  } catch {
-    return null;
-  }
-}
+const app = initializeApp({
+  apiKey: "AIzaSyB4tTVOD8P95EUzmOFNkco9AKI0wP1dLW0",
+  authDomain: "salh01.firebaseapp.com",
+  projectId: "salh01"
+});
 
-function addVideo() {
-  const link = document.getElementById('youtubeLink').value;
-  const videoId = extractVideoId(link);
-  if (!videoId) {
-    alert('رابط غير صالح');
+const auth = getAuth();
+const db = getFirestore();
+
+let user;
+onAuthStateChanged(auth,u=>{
+  if(!u) location.href="login.html";
+  user=u;
+});
+
+/* ===== YouTube ===== */
+let index=0;
+let players={};
+let state={};
+
+window.addVideo = async()=>{
+  const link=document.getElementById("yt").value;
+  const id=getId(link);
+  if(!id) return alert("رابط غير صحيح");
+
+  const videoKey=id;
+  const watchedRef=doc(db,"watched",`${user.uid}_${videoKey}`);
+  const watchedSnap=await getDoc(watchedRef);
+  if(watchedSnap.exists()){
+    alert("تم مشاهدة هذا الفيديو سابقًا");
     return;
   }
 
-  const id = 'player_' + (++playerCount);
+  const pid="p"+(++index);
+  state[pid]={played:false,locked:false,last:0,videoKey};
 
-  const box = document.createElement('div');
-  box.className = 'video-box';
-  box.innerHTML = `<div id="${id}"></div>`;
-  document.getElementById('videos').prepend(box);
+  const div=document.createElement("div");
+  div.className="video";
+  div.innerHTML=`<div id="${pid}"></div>`;
+  videos.prepend(div);
 
-  players[id] = videoId;
-}
-
-function onYouTubeIframeAPIReady() {
-  setInterval(() => {
-    for (let id in players) {
-      if (typeof players[id] === 'string') {
-        const videoId = players[id];
-        players[id] = new YT.Player(id, {
-          videoId,
-          playerVars: {
-            playsinline: 1,
-            controls: 1,
-            rel: 0
-          },
-          events: {
-            onStateChange: onPlayerStateChange
-          }
-        });
-      }
+  players[pid]=new YT.Player(pid,{
+    videoId:id,
+    playerVars:{
+      controls:1,
+      playsinline:1,
+      disablekb:1,
+      rel:0
+    },
+    events:{
+      onStateChange:e=>onState(e,pid)
     }
-  }, 500);
+  });
+};
+
+/* ===== منع التقديم ===== */
+function onState(e,pid){
+  const p=players[pid];
+  const s=state[pid];
+
+  if(e.data===YT.PlayerState.PLAYING){
+    if(!s.played){
+      s.played=true;
+      s.last=p.getCurrentTime();
+      s.timer=setInterval(()=>{
+        const t=p.getCurrentTime();
+        if(t>s.last+1.2){
+          p.seekTo(s.last,true);
+        }else{
+          s.last=t;
+        }
+      },500);
+    }
+  }
+
+  if(e.data===YT.PlayerState.ENDED && s.played){
+    clearInterval(s.timer);
+    reward(pid);
+  }
 }
 
-function onPlayerStateChange(event) {
-  if (event.data === YT.PlayerState.ENDED) {
-    document.getElementById('reward').style.display = 'flex';
+/* ===== المكافأة مرة واحدة ===== */
+async function reward(pid){
+  const s=state[pid];
+  const ref=doc(db,"watched",`${user.uid}_${s.videoKey}`);
+  const snap=await getDoc(ref);
+  if(snap.exists()) return;
+
+  await setDoc(ref,{done:true});
+  await updateDoc(doc(db,"users",user.uid),{
+    balance:increment(0.5)
+  });
+
+  rewardBox.style.display="flex";
+}
+
+const rewardBox=document.getElementById("reward");
+
+/* ===== استخراج ID ===== */
+function getId(url){
+  try{
+    const u=new URL(url);
+    if(u.hostname.includes("youtu.be"))
+      return u.pathname.slice(1);
+    return u.searchParams.get("v");
+  }catch{
+    return null;
   }
 }
 </script>
