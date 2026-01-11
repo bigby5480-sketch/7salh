@@ -79,6 +79,7 @@ video{
   background:black;
 }
 
+/* ===== زر الحذف ===== */
 .delete-btn{
   position:absolute;
   top:15px;
@@ -92,6 +93,7 @@ video{
   cursor:pointer;
 }
 
+/* ===== المكافأة ===== */
 .reward-overlay{
   position:absolute;
   inset:0;
@@ -138,11 +140,19 @@ video{
   width:90%;
   max-width:350px;
 }
+
+.modal-content input{
+  width:100%;
+  padding:10px;
+  border-radius:8px;
+  border:none;
+}
 </style>
 </head>
 
 <body>
 
+<!-- الشريط العلوي -->
 <div class="top-bar">
   <div class="balance">
     <span id="balance">0.00</span> ﷼
@@ -165,7 +175,7 @@ video{
 <div class="modal" id="addModal">
   <div class="modal-content">
     <h3>إضافة فيديو</h3><br>
-    <input id="videoUrl" placeholder="رابط فيديو MP4"><br><br>
+    <input id="videoUrl" placeholder="ضع رابط MP4 مباشر"><br><br>
     <button onclick="saveVideo()">حفظ الفيديو</button>
   </div>
 </div>
@@ -236,10 +246,6 @@ async function loadVideos(){
     const reward = div.querySelector(".reward-overlay");
     let rewarded = false;
 
-    video.addEventListener("loadeddata", ()=>{
-      video.play().catch(()=>{});
-    });
-
     video.addEventListener("timeupdate", async ()=>{
       if(video.currentTime >= 10 && !rewarded){
         rewarded = true;
@@ -261,7 +267,7 @@ async function loadVideos(){
   });
 }
 
-/* ===== تشغيل تلقائي حسب الظهور ===== */
+/* ===== تشغيل تلقائي ذكي ===== */
 const observer = new IntersectionObserver(entries=>{
   entries.forEach(e=>{
     const v = e.target;
@@ -269,7 +275,6 @@ const observer = new IntersectionObserver(entries=>{
       v.play().catch(()=>{});
     }else{
       v.pause();
-      v.currentTime = 0;
     }
   });
 },{threshold:0.6});
@@ -285,11 +290,16 @@ window.openAdd = ()=> addModal.style.display="flex";
 
 window.saveVideo = async()=>{
   const url = videoUrl.value.trim();
-  if(!url.endsWith(".mp4")) return alert("يجب أن يكون رابط mp4 مباشر");
+
+  if(!url.startsWith("http") || !url.endsWith(".mp4"))
+    return alert("يجب إدخال رابط MP4 مباشر");
+
   await addDoc(collection(db,"videos"),{
     videoUrl:url,
     createdAt:Date.now()
   });
+
+  videoUrl.value="";
   addModal.style.display="none";
   loadVideos();
 };
