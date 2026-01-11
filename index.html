@@ -72,19 +72,25 @@ body{
   position:relative;
 }
 
-video{
+iframe{
   width:100%;
   height:100%;
-  object-fit:cover;
-  background:black;
+  border:none;
 }
 
-/* ===== زر الحذف ===== */
+/* طبقة الضغط */
+.tap-layer{
+  position:absolute;
+  inset:0;
+  z-index:5;
+}
+
+/* زر الحذف */
 .delete-btn{
   position:absolute;
   top:15px;
   left:15px;
-  z-index:20;
+  z-index:10;
   background:red;
   color:white;
   border:none;
@@ -93,20 +99,20 @@ video{
   cursor:pointer;
 }
 
-/* ===== المكافأة ===== */
+/* شاشة المكافأة */
 .reward-overlay{
   position:absolute;
   inset:0;
   background:rgba(0,0,0,0.85);
-  z-index:30;
+  z-index:20;
   display:none;
   justify-content:center;
   align-items:center;
   flex-direction:column;
-  font-size:22px;
+  font-size:24px;
 }
 
-/* ===== زر الإضافة ===== */
+/* زر الإضافة */
 .add-btn{
   position:fixed;
   bottom:20px;
@@ -122,7 +128,7 @@ video{
   cursor:pointer;
 }
 
-/* ===== المودال ===== */
+/* مودال الإضافة */
 .modal{
   display:none;
   position:fixed;
@@ -139,13 +145,6 @@ video{
   border-radius:10px;
   width:90%;
   max-width:350px;
-}
-
-.modal-content input{
-  width:100%;
-  padding:10px;
-  border-radius:8px;
-  border:none;
 }
 </style>
 </head>
@@ -174,8 +173,8 @@ video{
 
 <div class="modal" id="addModal">
   <div class="modal-content">
-    <h3>إضافة فيديو</h3><br>
-    <input id="videoUrl" placeholder="ضع رابط MP4 مباشر"><br><br>
+    <h3>إضافة فيديو يوتيوب</h3><br>
+    <input id="videoUrl" placeholder="رابط يوتيوب"><br><br>
     <button onclick="saveVideo()">حفظ الفيديو</button>
   </div>
 </div>
@@ -204,7 +203,6 @@ let currentUser;
 onAuthStateChanged(auth, user=>{
   if(!user) return location.href="login.html";
   currentUser = user;
-
   username.innerText = user.email.split("@")[0];
 
   onSnapshot(doc(db,"users",user.uid), snap=>{
@@ -225,90 +223,80 @@ async function loadVideos(){
 
     const div = document.createElement("div");
     div.className="video";
+
     div.innerHTML=`
       <button class="delete-btn" onclick="deleteVideo('${d.id}')">حذف</button>
 
-      <video
-        src="${v.videoUrl}"
-        muted
-        autoplay
-        playsinline
-        preload="auto"
-        controls
-      ></video>
+      <iframe
+        id="player-${d.id}"
+        src="https://www.youtube.com/embed/${v.youtubeId}?enablejsapi=1"
+        allow="encrypted-media"
+      ></iframe>
 
-      <div class="reward-overlay">
+      <div class="tap-layer" onclick="playVideo('${d.id}')"></div>
+
+      <div class="reward-overlay" id="reward-${d.id}">
         🎉<br>تم الحصول على 0.5 ريال
       </div>
     `;
 
-    const video = div.querySelector("video");
-    const reward = div.querySelector(".reward-overlay");
-    let rewarded = false;
-
-    video.addEventListener("timeupdate", async ()=>{
-      if(video.currentTime >= 10 && !rewarded){
-        rewarded = true;
-
-        const ref = doc(db,"interactions",`${currentUser.uid}_${d.id}`);
-        const snap = await getDoc(ref);
-
-        if(!snap.exists()){
-          await setDoc(ref,{watched:true});
-          await updateDoc(doc(db,"users",currentUser.uid),
-            {balance:increment(0.5)});
-          reward.style.display="flex";
-        }
-      }
-    });
-
-    observer.observe(video);
     videos.appendChild(div);
   });
 }
 
-/* ===== تشغيل تلقائي ذكي ===== */
-const observer = new IntersectionObserver(entries=>{
-  entries.forEach(e=>{
-    const v = e.target;
-    if(e.isIntersecting){
-      v.play().catch(()=>{});
-    }else{
-      v.pause();
-    }
-  });
-},{threshold:0.6});
+/* ===== تشغيل بالضغط فقط ===== */
+window.playVideo = async(id)=>{
+  const iframe = document.getElementById(`player-${id}`);
+  iframe.contentWindow.postMessage(
+    '{"event":"command","func":"playVideo","args":""}',
+    "*"
+  );
 
-/* ===== وظائف عامة ===== */
+  const ref = doc(db,"interactions",`${currentUser.uid}_${id}`);
+  const snap = await getDoc(ref);
+
+  if(!snap.exists()){
+    await setDoc(ref,{watched:true});
+    await updateDoc(doc(db,"users",currentUser.uid),
+      {balance:increment(0.5)});
+    document.getElementById(`reward-${id}`).style.display="flex";
+  }
+};
+
+/* ===== إضافة فيديو ===== */
+window.saveVideo = async()=>{
+  const url = videoUrl.value.trim();
+  let id = "";
+
+  if(url.includes("watch?v="))
+    id = url.split("watch?v=")[1].split("&")[0];
+  else if(url.includes("youtu.be/"))
+    id = url.split("youtu.be/")[1];
+
+  if(!id) return alert("رابط يوتيوب غير صحيح");
+
+  await addDoc(collection(db,"videos"),{
+    youtubeId:id,
+    createdAt:Date.now()
+  });
+
+  addModal.style.display="none";
+  loadVideos();
+};
+
+/* ===== حذف ===== */
 window.deleteVideo = async(id)=>{
   if(!confirm("حذف الفيديو؟")) return;
   await deleteDoc(doc(db,"videos",id));
   loadVideos();
 };
 
+/* ===== واجهة ===== */
 window.openAdd = ()=> addModal.style.display="flex";
-
-window.saveVideo = async()=>{
-  const url = videoUrl.value.trim();
-
-  if(!url.startsWith("http") || !url.endsWith(".mp4"))
-    return alert("يجب إدخال رابط MP4 مباشر");
-
-  await addDoc(collection(db,"videos"),{
-    videoUrl:url,
-    createdAt:Date.now()
-  });
-
-  videoUrl.value="";
-  addModal.style.display="none";
-  loadVideos();
-};
-
 window.toggleMenu = ()=>{
   dropdown.style.display =
     dropdown.style.display==="block"?"none":"block";
 };
-
 window.logout = async()=>{
   await signOut(auth);
   location.href="login.html";
