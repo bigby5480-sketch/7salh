@@ -77,6 +77,7 @@ video{
   height:100%;
   object-fit:cover;
   pointer-events:none;
+  background:black;
 }
 
 .delete-btn{
@@ -163,43 +164,31 @@ video{
 
 <button class="add-btn" onclick="openAdd()">＋</button>
 
-<!-- مودال الإضافة -->
 <div class="modal" id="addModal">
   <div class="modal-content">
     <h3>إضافة فيديو</h3><br>
-
-    <input id="videoUrl" placeholder="رابط MP4 (اختياري)"><br><br>
-
-    <input id="videoFile" type="file" accept="video/mp4"><br><br>
-
+    <input id="videoUrl" placeholder="رابط فيديو MP4"><br><br>
     <button onclick="saveVideo()">حفظ الفيديو</button>
   </div>
 </div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getAuth, onAuthStateChanged, signOut } 
-from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import {
   getFirestore, collection, getDocs, addDoc,
   doc, getDoc, setDoc, updateDoc, deleteDoc,
   increment, onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-import {
-  getStorage, ref, uploadBytes, getDownloadURL
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
-
 const app = initializeApp({
   apiKey: "AIzaSyB4tTVOD8P95EUzmOFNkco9AKI0wP1dLW0",
   authDomain: "salh01.firebaseapp.com",
-  projectId: "salh01",
-  storageBucket: "salh01.appspot.com"
+  projectId: "salh01"
 });
 
 const auth = getAuth();
 const db = getFirestore();
-const storage = getStorage();
 
 let currentUser;
 
@@ -234,8 +223,9 @@ async function loadVideos(){
       <video
         src="${v.videoUrl}"
         muted
+        autoplay
         playsinline
-        preload="metadata"
+        preload="auto"
       ></video>
 
       <div class="reward-overlay">
@@ -247,15 +237,20 @@ async function loadVideos(){
     const reward = div.querySelector(".reward-overlay");
     let rewarded = false;
 
+    /* 🔴 الحل النهائي للشاشة السوداء */
+    video.addEventListener("loadeddata", ()=>{
+      video.play().catch(()=>{});
+    });
+
     video.addEventListener("timeupdate", async ()=>{
       if(video.currentTime >= 10 && !rewarded){
         rewarded = true;
 
-        const refInt = doc(db,"interactions",`${currentUser.uid}_${d.id}`);
-        const snapInt = await getDoc(refInt);
+        const ref = doc(db,"interactions",`${currentUser.uid}_${d.id}`);
+        const snap = await getDoc(ref);
 
-        if(!snapInt.exists()){
-          await setDoc(refInt,{watched:true});
+        if(!snap.exists()){
+          await setDoc(ref,{watched:true});
           await updateDoc(doc(db,"users",currentUser.uid),
             {balance:increment(0.5)});
           reward.style.display="flex";
@@ -268,7 +263,7 @@ async function loadVideos(){
   });
 }
 
-/* ===== تشغيل تلقائي ===== */
+/* ===== تشغيل تلقائي حسب الظهور ===== */
 const observer = new IntersectionObserver(entries=>{
   entries.forEach(e=>{
     const v = e.target;
@@ -279,49 +274,28 @@ const observer = new IntersectionObserver(entries=>{
       v.currentTime = 0;
     }
   });
-},{threshold:0.7});
+},{threshold:0.6});
 
-/* ===== حذف فيديو ===== */
+/* ===== وظائف عامة ===== */
 window.deleteVideo = async(id)=>{
   if(!confirm("حذف الفيديو؟")) return;
   await deleteDoc(doc(db,"videos",id));
   loadVideos();
 };
 
-/* ===== إضافة فيديو (رابط أو ملف) ===== */
 window.openAdd = ()=> addModal.style.display="flex";
 
 window.saveVideo = async()=>{
   const url = videoUrl.value.trim();
-  const file = videoFile.files[0];
-
-  let finalUrl = "";
-
-  if(url){
-    if(!url.endsWith(".mp4")) return alert("الرابط يجب أن يكون MP4");
-    finalUrl = url;
-  }
-  else if(file){
-    const fileRef = ref(storage, `videos/${Date.now()}_${file.name}`);
-    await uploadBytes(fileRef, file);
-    finalUrl = await getDownloadURL(fileRef);
-  }
-  else{
-    return alert("ضع رابط أو اختر ملف");
-  }
-
+  if(!url.endsWith(".mp4")) return alert("يجب أن يكون رابط mp4 مباشر");
   await addDoc(collection(db,"videos"),{
-    videoUrl: finalUrl,
-    createdAt: Date.now()
+    videoUrl:url,
+    createdAt:Date.now()
   });
-
   addModal.style.display="none";
-  videoUrl.value="";
-  videoFile.value="";
   loadVideos();
 };
 
-/* ===== القائمة ===== */
 window.toggleMenu = ()=>{
   dropdown.style.display =
     dropdown.style.display==="block"?"none":"block";
