@@ -2,69 +2,149 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<title>فيديو بمكافأة</title>
+<title>الرئيسية</title>
 
 <style>
-body {
+body{
   margin:0;
-  background:#000;
-  color:#fff;
+  background:black;
+  color:white;
   font-family:Arial;
 }
-header {
+
+/* ===== الشريط العلوي ===== */
+.top-bar{
+  position:fixed;
+  top:0;
+  right:0;
+  left:0;
+  height:55px;
   background:#111;
-  padding:10px;
   display:flex;
-  gap:10px;
+  justify-content:space-between;
+  align-items:center;
+  padding:0 15px;
+  z-index:1000;
+  border-bottom:1px solid #222;
 }
-input {
-  flex:1;
-  padding:10px;
+
+.balance{
+  color:#3f8efc;
+  font-weight:bold;
 }
-button {
-  padding:10px;
+
+.user{
   cursor:pointer;
 }
-.video {
-  position:relative;
-  width:100%;
-  height:300px;
-  margin-top:10px;
+
+.logout{
+  position:absolute;
+  top:55px;
+  left:15px;
+  background:#1a1a1a;
+  padding:10px;
+  border-radius:6px;
+  display:none;
 }
-.reward {
+
+/* ===== الفيديو ===== */
+#videos{
+  margin-top:55px;
+}
+
+.video{
+  position:relative;
+  height:300px;
+}
+
+.reward{
   position:fixed;
   inset:0;
-  background:rgba(0,0,0,.9);
+  background:rgba(0,0,0,.85);
   display:none;
   justify-content:center;
   align-items:center;
   font-size:24px;
   z-index:999;
 }
+
+/* ===== زر الإضافة ===== */
+.add-btn{
+  position:fixed;
+  bottom:20px;
+  right:20px;
+  width:55px;
+  height:55px;
+  border-radius:50%;
+  background:#3f8efc;
+  color:white;
+  font-size:30px;
+  border:none;
+  cursor:pointer;
+  z-index:500;
+}
+
+/* ===== المودال ===== */
+.modal{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.7);
+  display:none;
+  justify-content:center;
+  align-items:center;
+  z-index:600;
+}
+.modal-box{
+  background:#111;
+  padding:20px;
+  border-radius:10px;
+  width:90%;
+  max-width:350px;
+}
+.modal-box input{
+  width:100%;
+  padding:10px;
+}
+.modal-box button{
+  width:100%;
+  padding:10px;
+  margin-top:10px;
+}
 </style>
 </head>
 
 <body>
 
-<header>
-  <input id="yt" placeholder="رابط يوتيوب">
-  <button onclick="addVideo()">إضافة</button>
-</header>
+<!-- الشريط العلوي -->
+<div class="top-bar">
+  <div class="balance">الرصيد: <span id="balance">0</span> ﷼</div>
+  <div class="user" onclick="toggleLogout()">
+    <span id="username">مستخدم</span> ▼
+    <div class="logout" id="logoutBox" onclick="logout()">تسجيل الخروج</div>
+  </div>
+</div>
 
 <div id="videos"></div>
 
-<div class="reward" id="reward">
-  🎉 تم احتساب المكافأة
+<div class="reward" id="reward">🎉 تم احتساب المكافأة</div>
+
+<button class="add-btn" onclick="openModal()">＋</button>
+
+<div class="modal" id="modal">
+  <div class="modal-box">
+    <input id="ytLink" placeholder="الصق رابط يوتيوب">
+    <button onclick="addVideo()">حفظ الفيديو</button>
+  </div>
 </div>
 
 <script src="https://www.youtube.com/iframe_api"></script>
 
 <script type="module">
-/* ===== Firebase ===== */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import {
   getAuth,
-  onAuthStateChanged
+  onAuthStateChanged,
+  signOut
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import {
   getFirestore,
@@ -85,31 +165,42 @@ const auth = getAuth();
 const db = getFirestore();
 
 let user;
+let index=0;
+let players={}, state={};
+
 onAuthStateChanged(auth,u=>{
   if(!u) location.href="login.html";
   user=u;
+  username.innerText=u.email.split("@")[0];
 });
 
-/* ===== YouTube ===== */
-let index=0;
-let players={};
-let state={};
+/* ===== UI ===== */
+window.openModal=()=> modal.style.display="flex";
+window.toggleLogout=()=>{
+  logoutBox.style.display =
+    logoutBox.style.display==="block"?"none":"block";
+};
+window.logout=async()=>{
+  await signOut(auth);
+  location.href="login.html";
+};
 
+/* ===== إضافة فيديو ===== */
 window.addVideo = async()=>{
-  const link=document.getElementById("yt").value;
-  const id=getId(link);
-  if(!id) return alert("رابط غير صحيح");
+  const link=ytLink.value.trim();
+  modal.style.display="none";
+  ytLink.value="";
 
-  const videoKey=id;
-  const watchedRef=doc(db,"watched",`${user.uid}_${videoKey}`);
-  const watchedSnap=await getDoc(watchedRef);
-  if(watchedSnap.exists()){
-    alert("تم مشاهدة هذا الفيديو سابقًا");
-    return;
-  }
+  const id=getId(link);
+  if(!id) return alert("رابط غير صالح");
+
+  const key=id;
+  const ref=doc(db,"watched",`${user.uid}_${key}`);
+  if((await getDoc(ref)).exists())
+    return alert("تم مشاهدة الفيديو سابقًا");
 
   const pid="p"+(++index);
-  state[pid]={played:false,locked:false,last:0,videoKey};
+  state[pid]={played:false,last:0,key};
 
   const div=document.createElement("div");
   div.className="video";
@@ -118,19 +209,12 @@ window.addVideo = async()=>{
 
   players[pid]=new YT.Player(pid,{
     videoId:id,
-    playerVars:{
-      controls:1,
-      playsinline:1,
-      disablekb:1,
-      rel:0
-    },
-    events:{
-      onStateChange:e=>onState(e,pid)
-    }
+    playerVars:{playsinline:1,disablekb:1},
+    events:{onStateChange:e=>onState(e,pid)}
   });
 };
 
-/* ===== منع التقديم ===== */
+/* ===== التحكم والمكافأة ===== */
 function onState(e,pid){
   const p=players[pid];
   const s=state[pid];
@@ -141,37 +225,29 @@ function onState(e,pid){
       s.last=p.getCurrentTime();
       s.timer=setInterval(()=>{
         const t=p.getCurrentTime();
-        if(t>s.last+1.2){
-          p.seekTo(s.last,true);
-        }else{
-          s.last=t;
-        }
+        if(t>s.last+1.2) p.seekTo(s.last,true);
+        else s.last=t;
       },500);
     }
   }
 
-  if(e.data===YT.PlayerState.ENDED && s.played){
+  if(e.data===YT.PlayerState.ENDED){
     clearInterval(s.timer);
-    reward(pid);
+    rewardVideo(s.key);
   }
 }
 
-/* ===== المكافأة مرة واحدة ===== */
-async function reward(pid){
-  const s=state[pid];
-  const ref=doc(db,"watched",`${user.uid}_${s.videoKey}`);
-  const snap=await getDoc(ref);
-  if(snap.exists()) return;
+async function rewardVideo(key){
+  const ref=doc(db,"watched",`${user.uid}_${key}`);
+  if((await getDoc(ref)).exists()) return;
 
   await setDoc(ref,{done:true});
   await updateDoc(doc(db,"users",user.uid),{
     balance:increment(0.5)
   });
 
-  rewardBox.style.display="flex";
+  reward.style.display="flex";
 }
-
-const rewardBox=document.getElementById("reward");
 
 /* ===== استخراج ID ===== */
 function getId(url){
