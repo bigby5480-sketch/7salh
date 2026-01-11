@@ -38,13 +38,7 @@ body{
 }
 
 .user-menu{ position:relative; }
-
-.user-name{
-  cursor:pointer;
-  display:flex;
-  align-items:center;
-  gap:6px;
-}
+.user-name{ cursor:pointer; }
 
 .dropdown{
   position:absolute;
@@ -52,11 +46,9 @@ body{
   left:0;
   background:#1a1a1a;
   border-radius:8px;
-  overflow:hidden;
   display:none;
   min-width:160px;
 }
-
 .dropdown div{
   padding:10px;
   cursor:pointer;
@@ -143,7 +135,6 @@ video{
 
 <body>
 
-<!-- الشريط العلوي -->
 <div class="top-bar">
   <div class="balance">
     <span id="balance">0.00</span> ﷼
@@ -166,8 +157,8 @@ video{
 <div class="modal" id="addModal">
   <div class="modal-content">
     <h3>إضافة فيديو</h3><br>
-    <input id="videoUrl" placeholder="رابط الفيديو MP4"><br><br>
-    <button onclick="saveVideo()">حفظ الفيديو</button>
+    <input type="file" id="videoFile" accept="video/mp4"><br><br>
+    <button onclick="saveVideo()">رفع الفيديو</button>
   </div>
 </div>
 
@@ -180,14 +171,20 @@ import {
   increment, onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
+import {
+  getStorage, ref, uploadBytes, getDownloadURL
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
+
 const app = initializeApp({
   apiKey: "AIzaSyB4tTVOD8P95EUzmOFNkco9AKI0wP1dLW0",
   authDomain: "salh01.firebaseapp.com",
-  projectId: "salh01"
+  projectId: "salh01",
+  storageBucket: "salh01.appspot.com"
 });
 
 const auth = getAuth();
 const db = getFirestore();
+const storage = getStorage();
 
 let currentUser;
 
@@ -213,35 +210,24 @@ async function loadVideos(){
 
   snap.forEach(d=>{
     const v = d.data();
-
     const div = document.createElement("div");
     div.className="video";
+
     div.innerHTML=`
       <button class="delete-btn" onclick="deleteVideo('${d.id}')">حذف</button>
-
-      <video
-        src="${v.videoUrl}"
-        muted
-        playsinline
-        preload="metadata"
-      ></video>
-
-      <div class="reward-overlay">
-        🎉<br>تم الحصول على 0.5 ريال
-      </div>
+      <video src="${v.videoUrl}" muted playsinline preload="metadata"></video>
+      <div class="reward-overlay">🎉<br>تم الحصول على 0.5 ريال</div>
     `;
 
     const video = div.querySelector("video");
     const reward = div.querySelector(".reward-overlay");
-    let rewarded = false;
+    let rewarded=false;
 
     video.addEventListener("timeupdate", async ()=>{
-      if(video.currentTime >= 10 && !rewarded){
-        rewarded = true;
-
+      if(video.currentTime>=10 && !rewarded){
+        rewarded=true;
         const ref = doc(db,"interactions",`${currentUser.uid}_${d.id}`);
         const snap = await getDoc(ref);
-
         if(!snap.exists()){
           await setDoc(ref,{watched:true});
           await updateDoc(doc(db,"users",currentUser.uid),
@@ -259,42 +245,49 @@ async function loadVideos(){
 /* ===== تشغيل تلقائي ===== */
 const observer = new IntersectionObserver(entries=>{
   entries.forEach(e=>{
-    const v = e.target;
+    const v=e.target;
     if(e.isIntersecting){
       v.play().catch(()=>{});
     }else{
       v.pause();
-      v.currentTime = 0;
+      v.currentTime=0;
     }
   });
 },{threshold:0.7});
 
-/* ===== وظائف عامة ===== */
+/* ===== إضافة فيديو ===== */
+window.openAdd=()=>addModal.style.display="flex";
+
+window.saveVideo = async()=>{
+  const file = videoFile.files[0];
+  if(!file) return alert("اختر فيديو");
+
+  const storageRef = ref(storage, `videos/${Date.now()}_${file.name}`);
+  await uploadBytes(storageRef,file);
+  const url = await getDownloadURL(storageRef);
+
+  await addDoc(collection(db,"videos"),{
+    videoUrl:url,
+    createdAt:Date.now()
+  });
+
+  addModal.style.display="none";
+  loadVideos();
+};
+
+/* ===== حذف فيديو ===== */
 window.deleteVideo = async(id)=>{
   if(!confirm("حذف الفيديو؟")) return;
   await deleteDoc(doc(db,"videos",id));
   loadVideos();
 };
 
-window.openAdd = ()=> addModal.style.display="flex";
-
-window.saveVideo = async()=>{
-  const url = videoUrl.value.trim();
-  if(!url.endsWith(".mp4")) return alert("يجب أن يكون رابط mp4");
-  await addDoc(collection(db,"videos"),{
-    videoUrl:url,
-    createdAt:Date.now()
-  });
-  addModal.style.display="none";
-  loadVideos();
-};
-
-window.toggleMenu = ()=>{
+window.toggleMenu=()=>{
   dropdown.style.display =
     dropdown.style.display==="block"?"none":"block";
 };
 
-window.logout = async()=>{
+window.logout=async()=>{
   await signOut(auth);
   location.href="login.html";
 };
