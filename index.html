@@ -52,14 +52,28 @@ body{
   pointer-events:none;
 }
 
-/* ===== إخفاء شعار يوتيوب (المربعات) ===== */
+/* ===== إخفاء كلمة يوتيوب ===== */
 .yt-mask{
   position:absolute;
   bottom:0;
   right:0;
-  width:70px;
-  height:35px;
+  width:90px;
+  height:45px;
   background:black;
+  z-index:6;
+  pointer-events:none;
+}
+
+/* ===== إخفاء زر التشغيل الأبيض ===== */
+.yt-center-mask{
+  position:absolute;
+  top:50%;
+  left:50%;
+  transform:translate(-50%,-50%);
+  width:90px;
+  height:90px;
+  background:black;
+  border-radius:50%;
   z-index:6;
   pointer-events:none;
 }
@@ -75,7 +89,7 @@ body{
   font-size:18px;
   text-align:center;
   padding:10px;
-  z-index:5;
+  z-index:7;
 }
 
 /* ===== زر الحذف ===== */
@@ -116,18 +130,19 @@ body{
   height:100vh;
   position:relative;
 }
+
 #playerContainer iframe{
   width:100vw !important;
   height:100vh !important;
 }
 
-/* ===== إخفاء شعار يوتيوب (كامل الشاشة) ===== */
+/* ===== إخفاء يوتيوب داخل المشغل ===== */
 .yt-mask-full{
   position:absolute;
   bottom:0;
   right:0;
-  width:90px;
-  height:45px;
+  width:120px;
+  height:60px;
   background:black;
   z-index:20;
   pointer-events:none;
@@ -201,6 +216,7 @@ async function loadVideos(){
       <button class="delete-btn">✖</button>
       <iframe src="https://www.youtube.com/embed/${data.youtubeId}?controls=0"></iframe>
       <div class="yt-mask"></div>
+      <div class="yt-center-mask"></div>
       ${seenSnap.exists()
         ?'<div class="done-badge">🎉 تم الحصول على المكافأة<br>0.5 ريال</div>'
         :''}
