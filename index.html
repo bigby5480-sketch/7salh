@@ -52,6 +52,18 @@ body{
   pointer-events:none;
 }
 
+/* ===== إخفاء شعار يوتيوب (المربعات) ===== */
+.yt-mask{
+  position:absolute;
+  bottom:0;
+  right:0;
+  width:70px;
+  height:35px;
+  background:black;
+  z-index:6;
+  pointer-events:none;
+}
+
 /* ===== شارة المكافأة ===== */
 .done-badge{
   position:absolute;
@@ -81,7 +93,7 @@ body{
   z-index:10;
 }
 
-/* ===== المشغل المنبثق (كامل الشاشة) ===== */
+/* ===== المشغل المنبثق ===== */
 #playerModal{
   position:fixed;
   inset:0;
@@ -102,10 +114,23 @@ body{
 #playerContainer{
   width:100vw;
   height:100vh;
+  position:relative;
 }
 #playerContainer iframe{
   width:100vw !important;
   height:100vh !important;
+}
+
+/* ===== إخفاء شعار يوتيوب (كامل الشاشة) ===== */
+.yt-mask-full{
+  position:absolute;
+  bottom:0;
+  right:0;
+  width:90px;
+  height:45px;
+  background:black;
+  z-index:20;
+  pointer-events:none;
 }
 </style>
 </head>
@@ -121,7 +146,9 @@ body{
 <!-- المشغل -->
 <div id="playerModal">
   <div id="closePlayer" onclick="closePlayer()">✖</div>
-  <div id="playerContainer"></div>
+  <div id="playerContainer">
+    <div class="yt-mask-full"></div>
+  </div>
 </div>
 
 <script type="module">
@@ -143,46 +170,45 @@ const db = getFirestore();
 
 let currentUser;
 let player;
-let currentVideoId;
-let cheated = false;
-let startedAt = null;
+let cheated=false;
+let startedAt=null;
 
 onAuthStateChanged(auth,user=>{
   if(!user) location.href="login.html";
-  currentUser = user;
+  currentUser=user;
 
   onSnapshot(doc(db,"users",user.uid), snap=>{
     if(snap.exists())
-      balance.innerText = (snap.data().balance||0).toFixed(2);
+      balance.innerText=(snap.data().balance||0).toFixed(2);
   });
 
   loadVideos();
 });
 
-/* ===== تحميل الفيديوهات ===== */
 async function loadVideos(){
   videos.innerHTML="";
-  const snap = await getDocs(collection(db,"videos"));
+  const snap=await getDocs(collection(db,"videos"));
 
   for(const d of snap.docs){
-    const data = d.data();
-    const seenRef = doc(db,"interactions", currentUser.uid+"_"+d.id);
-    const seenSnap = await getDoc(seenRef);
+    const data=d.data();
+    const seenRef=doc(db,"interactions",currentUser.uid+"_"+d.id);
+    const seenSnap=await getDoc(seenRef);
 
-    const box = document.createElement("div");
+    const box=document.createElement("div");
     box.className="video-box";
 
     box.innerHTML=`
       <button class="delete-btn">✖</button>
       <iframe src="https://www.youtube.com/embed/${data.youtubeId}?controls=0"></iframe>
+      <div class="yt-mask"></div>
       ${seenSnap.exists()
         ?'<div class="done-badge">🎉 تم الحصول على المكافأة<br>0.5 ريال</div>'
         :''}
     `;
 
-    box.onclick = ()=> openPlayer(data.youtubeId, d.id, seenSnap.exists());
+    box.onclick=()=>openPlayer(data.youtubeId,d.id,seenSnap.exists());
 
-    box.querySelector(".delete-btn").onclick = async e=>{
+    box.querySelector(".delete-btn").onclick=async e=>{
       e.stopPropagation();
       if(confirm("حذف الفيديو؟")){
         await deleteDoc(doc(db,"videos",d.id));
@@ -194,44 +220,31 @@ async function loadVideos(){
   }
 }
 
-/* ===== المشغل ===== */
-window.openPlayer = async (ytId, vid, alreadySeen)=>{
-  currentVideoId = vid;
-  cheated = false;
-  startedAt = null;
+window.openPlayer=(ytId,vid,alreadySeen)=>{
+  cheated=false;
+  startedAt=null;
 
   playerModal.style.display="block";
-  playerContainer.innerHTML='<div id="player"></div>';
+  playerContainer.innerHTML='<div id="player"></div><div class="yt-mask-full"></div>';
 
-  player = new YT.Player("player",{
+  player=new YT.Player("player",{
     videoId:ytId,
     playerVars:{
       controls:0,
       disablekb:1,
-      playsinline:1,
-      modestbranding:1
+      playsinline:1
     },
     events:{
-      onStateChange: async e=>{
-        if(e.data === YT.PlayerState.PLAYING){
-          if(startedAt === null){
-            startedAt = player.getCurrentTime();
-          }else{
-            if(Math.abs(player.getCurrentTime()-startedAt)>1)
-              cheated = true;
-          }
+      onStateChange:async e=>{
+        if(e.data===YT.PlayerState.PLAYING){
+          if(startedAt===null) startedAt=player.getCurrentTime();
+          else if(Math.abs(player.getCurrentTime()-startedAt)>1) cheated=true;
         }
 
-        if(e.data === YT.PlayerState.ENDED){
+        if(e.data===YT.PlayerState.ENDED){
           if(!cheated && !alreadySeen){
-            await setDoc(
-              doc(db,"interactions", currentUser.uid+"_"+vid),
-              {done:true}
-            );
-            await updateDoc(
-              doc(db,"users",currentUser.uid),
-              {balance:increment(0.5)}
-            );
+            await setDoc(doc(db,"interactions",currentUser.uid+"_"+vid),{done:true});
+            await updateDoc(doc(db,"users",currentUser.uid),{balance:increment(0.5)});
           }
           closePlayer();
           loadVideos();
@@ -241,7 +254,7 @@ window.openPlayer = async (ytId, vid, alreadySeen)=>{
   });
 };
 
-window.closePlayer = ()=>{
+window.closePlayer=()=>{
   if(player) player.destroy();
   playerModal.style.display="none";
 };
