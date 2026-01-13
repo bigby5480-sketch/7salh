@@ -3,26 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <title>الرئيسية</title>
-
 <script src="https://www.youtube.com/iframe_api"></script>
 
 <style>
 body{
   margin:0;
-  background:black;
-  color:white;
+  background:#000;
+  color:#fff;
   font-family:Arial;
-  height:100vh;
-  overflow-y:scroll;
-  scroll-snap-type:y mandatory;
 }
 
 /* ===== الشريط العلوي ===== */
 .top-bar{
   position:fixed;
-  top:0;
-  right:0;
-  left:0;
+  top:0; left:0; right:0;
   height:55px;
   background:#111;
   display:flex;
@@ -30,94 +24,82 @@ body{
   align-items:center;
   padding:0 15px;
   z-index:1000;
-  border-bottom:1px solid #222;
 }
 
-.balance{
-  font-size:16px;
-  font-weight:bold;
-  color:#3f8efc;
+.balance{ color:#3f8efc; font-weight:bold; }
+
+/* ===== شبكة الفيديوهات ===== */
+#videos{
+  margin-top:65px;
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(200px,1fr));
+  gap:15px;
+  padding:15px;
 }
 
-.user-menu{ position:relative; }
-.user-name{ cursor:pointer; }
-
-.dropdown{
-  position:absolute;
-  top:40px;
-  left:0;
-  background:#1a1a1a;
-  border-radius:8px;
-  display:none;
-  min-width:160px;
-}
-
-.dropdown div{
-  padding:10px;
-  cursor:pointer;
-}
-.dropdown div:hover{ background:#333; }
-
-/* ===== الفيديو ===== */
-#videos{ margin-top:55px; }
-
-.video{
-  height:100vh;
+.video-box{
   position:relative;
-  scroll-snap-align:start;
+  background:#111;
+  border-radius:10px;
+  overflow:hidden;
+  cursor:pointer;
+  aspect-ratio:9/16;
 }
 
-.player{
+.video-box iframe{
   width:100%;
   height:100%;
+  pointer-events:none;
 }
 
-/* ===== المكافأة ===== */
-.reward{
+/* ===== شارة المشاهدة ===== */
+.done-badge{
   position:absolute;
   inset:0;
-  background:rgba(0,0,0,0.75);
-  display:none;
-  z-index:5;
-  justify-content:center;
+  background:rgba(0,0,0,.75);
+  display:flex;
   align-items:center;
-  font-size:26px;
-  cursor:pointer;
+  justify-content:center;
+  font-size:20px;
+  z-index:5;
 }
 
-/* ===== زر الإضافة ===== */
-.add-btn{
-  position:fixed;
-  bottom:20px;
-  right:20px;
-  width:55px;
-  height:55px;
-  border-radius:50%;
-  background:#3f8efc;
+/* ===== زر الحذف ===== */
+.delete-btn{
+  position:absolute;
+  top:5px;
+  left:5px;
+  background:red;
   color:white;
-  font-size:30px;
   border:none;
-  z-index:100;
+  border-radius:50%;
+  width:28px;
+  height:28px;
   cursor:pointer;
+  z-index:10;
 }
 
-/* ===== نافذة الإضافة ===== */
-.modal{
+/* ===== المشغل المنبثق ===== */
+#playerModal{
   position:fixed;
   inset:0;
-  background:rgba(0,0,0,.7);
+  background:black;
   display:none;
-  justify-content:center;
-  align-items:center;
-  z-index:200;
+  z-index:2000;
 }
 
-.modal-content{
-  background:#111;
-  padding:20px;
-  border-radius:10px;
-  width:90%;
-  max-width:350px;
+#closePlayer{
+  position:absolute;
+  top:10px;
+  left:10px;
+  font-size:22px;
+  cursor:pointer;
+  z-index:10;
+}
+
+#playerContainer{
+  width:100%;
+  height:100%;
 }
 </style>
 </head>
@@ -125,52 +107,41 @@ body{
 <body>
 
 <div class="top-bar">
-  <div class="balance">
-    <span id="balance">0.00</span> ﷼
-  </div>
-
-  <div class="user-menu">
-    <div class="user-name" onclick="toggleMenu()">مستخدم ▼</div>
-    <div class="dropdown" id="dropdown">
-      <div onclick="logout()">تسجيل الخروج</div>
-    </div>
-  </div>
+  <div class="balance"><span id="balance">0.00</span> ﷼</div>
 </div>
 
 <div id="videos"></div>
 
-<button class="add-btn" onclick="openAdd()">＋</button>
-
-<div class="modal" id="addModal">
-  <div class="modal-content">
-    <h3>إضافة فيديو يوتيوب</h3><br>
-    <input id="ytUrl" placeholder="رابط يوتيوب"><br><br>
-    <button onclick="saveVideo()">حفظ</button>
-  </div>
+<!-- المشغل -->
+<div id="playerModal">
+  <div id="closePlayer" onclick="closePlayer()">✖</div>
+  <div id="playerContainer"></div>
 </div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import {
-  getFirestore, collection, addDoc, getDocs,
-  doc, getDoc, setDoc, updateDoc,
-  increment, onSnapshot
+  getFirestore, collection, getDocs, doc, getDoc,
+  deleteDoc, updateDoc, increment, setDoc, onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const app = initializeApp({
-  apiKey: "AIzaSyB4tTVOD8P95EUzmOFNkco9AKI0wP1dLW0",
-  authDomain: "salh01.firebaseapp.com",
-  projectId: "salh01"
+  apiKey:"AIzaSyB4tTVOD8P95EUzmOFNkco9AKI0wP1dLW0",
+  authDomain:"salh01.firebaseapp.com",
+  projectId:"salh01"
 });
 
 const auth = getAuth();
 const db = getFirestore();
 
 let currentUser;
-let players = {};
+let player;
+let currentVideoId;
+let cheated = false;
+let startedAt = null;
 
-onAuthStateChanged(auth, user=>{
+onAuthStateChanged(auth,user=>{
   if(!user) location.href="login.html";
   currentUser = user;
 
@@ -187,104 +158,82 @@ async function loadVideos(){
   videos.innerHTML="";
   const snap = await getDocs(collection(db,"videos"));
 
-  snap.forEach(d=>{
+  for(const d of snap.docs){
     const data = d.data();
-    const div = document.createElement("div");
-    div.className="video";
+    const seenRef = doc(db,"interactions", currentUser.uid+"_"+d.id);
+    const seenSnap = await getDoc(seenRef);
 
-    div.innerHTML=`
-      <div id="player-${d.id}" class="player"></div>
-      <div class="reward">🎉 حصلت على 0.5 ريال</div>
+    const box = document.createElement("div");
+    box.className="video-box";
+
+    box.innerHTML=`
+      <button class="delete-btn">✖</button>
+      <iframe src="https://www.youtube.com/embed/${data.youtubeId}?controls=0"></iframe>
+      ${seenSnap.exists()?'<div class="done-badge">✔ تمت مشاهدة هذا الفيديو</div>':''}
     `;
 
-    videos.appendChild(div);
-
-    let startedAt = null;
-    let cheated = false;
-
-    players[d.id] = new YT.Player(`player-${d.id}`,{
-      videoId: data.youtubeId,
-      playerVars:{
-        controls:1,
-        rel:0,
-        playsinline:1
-      },
-      events:{
-        onStateChange: async e=>{
-          if(e.data === YT.PlayerState.PLAYING){
-            if(startedAt === null){
-              startedAt = players[d.id].getCurrentTime();
-            }else{
-              const diff = players[d.id].getCurrentTime() - startedAt;
-              if(Math.abs(diff) > 1) cheated = true;
-            }
-          }
-
-          if(e.data === YT.PlayerState.ENDED){
-            const reward = div.querySelector(".reward");
-            reward.style.display="flex";
-
-            if(!cheated){
-              const ref = doc(db,"interactions",
-                currentUser.uid + "_" + d.id);
-
-              const seen = await getDoc(ref);
-              if(!seen.exists()){
-                await setDoc(ref,{done:true});
-                await updateDoc(
-                  doc(db,"users",currentUser.uid),
-                  {balance: increment(0.5)}
-                );
-              }
-            }
-          }
-        }
+    box.onclick = ()=> openPlayer(data.youtubeId, d.id, seenSnap.exists());
+    box.querySelector(".delete-btn").onclick = async e=>{
+      e.stopPropagation();
+      if(confirm("حذف الفيديو؟")){
+        await deleteDoc(doc(db,"videos",d.id));
+        loadVideos();
       }
-    });
-
-    div.querySelector(".reward").onclick = ()=>{
-      div.querySelector(".reward").style.display="none";
-      players[d.id].seekTo(0);
-      players[d.id].playVideo();
-      cheated = false;
-      startedAt = null;
     };
-  });
+
+    videos.appendChild(box);
+  }
 }
 
-/* ===== الإضافة ===== */
-window.openAdd = ()=> addModal.style.display="flex";
+/* ===== المشغل ===== */
+window.openPlayer = async (ytId, vid, alreadySeen)=>{
+  currentVideoId = vid;
+  cheated = false;
+  startedAt = null;
 
-window.saveVideo = async()=>{
-  const url = ytUrl.value.trim();
-  let id = "";
+  playerModal.style.display="block";
+  playerContainer.innerHTML='<div id="player"></div>';
 
-  if(url.includes("watch?v="))
-    id = url.split("watch?v=")[1].split("&")[0];
-  else if(url.includes("youtu.be/"))
-    id = url.split("youtu.be/")[1];
+  player = new YT.Player("player",{
+    videoId:ytId,
+    playerVars:{
+      controls:0,
+      disablekb:1,
+      playsinline:1
+    },
+    events:{
+      onStateChange: async e=>{
+        if(e.data === YT.PlayerState.PLAYING){
+          if(startedAt === null){
+            startedAt = player.getCurrentTime();
+          }else{
+            if(Math.abs(player.getCurrentTime()-startedAt)>1)
+              cheated = true;
+          }
+        }
 
-  if(!id) return alert("رابط غير صحيح");
-
-  await addDoc(collection(db,"videos"),{
-    youtubeId:id,
-    createdAt:Date.now()
+        if(e.data === YT.PlayerState.ENDED){
+          if(!cheated && !alreadySeen){
+            await setDoc(
+              doc(db,"interactions", currentUser.uid+"_"+vid),
+              {done:true}
+            );
+            await updateDoc(
+              doc(db,"users",currentUser.uid),
+              {balance:increment(0.5)}
+            );
+          }
+          closePlayer();
+          loadVideos();
+        }
+      }
+    }
   });
-
-  addModal.style.display="none";
-  ytUrl.value="";
-  loadVideos();
 };
 
-/* ===== القائمة ===== */
-window.toggleMenu = ()=>{
-  dropdown.style.display =
-    dropdown.style.display==="block"?"none":"block";
-};
-
-window.logout = async()=>{
-  await signOut(auth);
-  location.href="login.html";
+window.closePlayer = ()=>{
+  if(player) player.destroy();
+  playerModal.style.display="none";
 };
 </script>
 
