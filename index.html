@@ -52,7 +52,7 @@ body{
   pointer-events:none;
 }
 
-/* ===== شارة المشاهدة ===== */
+/* ===== شارة المكافأة ===== */
 .done-badge{
   position:absolute;
   inset:0;
@@ -60,7 +60,9 @@ body{
   display:flex;
   align-items:center;
   justify-content:center;
-  font-size:20px;
+  font-size:18px;
+  text-align:center;
+  padding:10px;
   z-index:5;
 }
 
@@ -79,7 +81,7 @@ body{
   z-index:10;
 }
 
-/* ===== المشغل المنبثق ===== */
+/* ===== المشغل المنبثق (كامل الشاشة) ===== */
 #playerModal{
   position:fixed;
   inset:0;
@@ -92,14 +94,18 @@ body{
   position:absolute;
   top:10px;
   left:10px;
-  font-size:22px;
+  font-size:26px;
   cursor:pointer;
   z-index:10;
 }
 
 #playerContainer{
-  width:100%;
-  height:100%;
+  width:100vw;
+  height:100vh;
+}
+#playerContainer iframe{
+  width:100vw !important;
+  height:100vh !important;
 }
 </style>
 </head>
@@ -169,10 +175,13 @@ async function loadVideos(){
     box.innerHTML=`
       <button class="delete-btn">✖</button>
       <iframe src="https://www.youtube.com/embed/${data.youtubeId}?controls=0"></iframe>
-      ${seenSnap.exists()?'<div class="done-badge">✔ تمت مشاهدة هذا الفيديو</div>':''}
+      ${seenSnap.exists()
+        ?'<div class="done-badge">🎉 تم الحصول على المكافأة<br>0.5 ريال</div>'
+        :''}
     `;
 
     box.onclick = ()=> openPlayer(data.youtubeId, d.id, seenSnap.exists());
+
     box.querySelector(".delete-btn").onclick = async e=>{
       e.stopPropagation();
       if(confirm("حذف الفيديو؟")){
@@ -199,7 +208,8 @@ window.openPlayer = async (ytId, vid, alreadySeen)=>{
     playerVars:{
       controls:0,
       disablekb:1,
-      playsinline:1
+      playsinline:1,
+      modestbranding:1
     },
     events:{
       onStateChange: async e=>{
