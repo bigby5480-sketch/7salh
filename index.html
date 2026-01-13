@@ -20,7 +20,7 @@ body{
   height:55px;
   background:#111;
   display:flex;
-  justify-content:space-between;
+  justify-content:flex-end;
   align-items:center;
   padding:0 15px;
   z-index:1000;
@@ -107,6 +107,41 @@ body{
   z-index:10;
 }
 
+/* ===== زر الإضافة ===== */
+.add-btn{
+  position:fixed;
+  bottom:20px;
+  right:20px;
+  width:55px;
+  height:55px;
+  border-radius:50%;
+  background:#3f8efc;
+  color:white;
+  font-size:30px;
+  border:none;
+  cursor:pointer;
+  z-index:1500;
+}
+
+/* ===== نافذة الإضافة ===== */
+.modal{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.7);
+  display:none;
+  justify-content:center;
+  align-items:center;
+  z-index:3000;
+}
+
+.modal-content{
+  background:#111;
+  padding:20px;
+  border-radius:10px;
+  width:90%;
+  max-width:350px;
+}
+
 /* ===== المشغل المنبثق ===== */
 #playerModal{
   position:fixed;
@@ -158,6 +193,16 @@ body{
 
 <div id="videos"></div>
 
+<button class="add-btn" onclick="openAdd()">＋</button>
+
+<div class="modal" id="addModal">
+  <div class="modal-content">
+    <h3>إضافة فيديو يوتيوب</h3><br>
+    <input id="ytUrl" placeholder="رابط يوتيوب" style="width:100%;padding:8px"><br><br>
+    <button onclick="saveVideo()">حفظ</button>
+  </div>
+</div>
+
 <!-- المشغل -->
 <div id="playerModal">
   <div id="closePlayer" onclick="closePlayer()">✖</div>
@@ -171,7 +216,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import {
   getFirestore, collection, getDocs, doc, getDoc,
-  deleteDoc, updateDoc, increment, setDoc, onSnapshot
+  deleteDoc, updateDoc, increment, setDoc, addDoc, onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const app = initializeApp({
@@ -236,6 +281,31 @@ async function loadVideos(){
   }
 }
 
+/* ===== إضافة فيديو ===== */
+window.openAdd=()=> addModal.style.display="flex";
+
+window.saveVideo=async()=>{
+  const url=ytUrl.value.trim();
+  let id="";
+
+  if(url.includes("watch?v="))
+    id=url.split("watch?v=")[1].split("&")[0];
+  else if(url.includes("youtu.be/"))
+    id=url.split("youtu.be/")[1];
+
+  if(!id) return alert("رابط غير صحيح");
+
+  await addDoc(collection(db,"videos"),{
+    youtubeId:id,
+    createdAt:Date.now()
+  });
+
+  ytUrl.value="";
+  addModal.style.display="none";
+  loadVideos();
+};
+
+/* ===== المشغل ===== */
 window.openPlayer=(ytId,vid,alreadySeen)=>{
   cheated=false;
   startedAt=null;
